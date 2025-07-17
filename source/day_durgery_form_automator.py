@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-日间手术随访表生成系统 (UI增强版)
+日间手术随访表生成系统 (DPI和UI修复版)
 
 功能：
 - 自动从Excel批量生成Word随访表
@@ -8,6 +8,7 @@
 - 自动检测Excel标题行
 - 支持进度条和实时日志
 - 可配置关键参数
+- 修正高DPI显示和UI背景色不一致问题
 
 作者：顾江江 (由AI优化和修复)
 """
@@ -24,6 +25,10 @@ try:
     from docx import Document
     import pandas as pd
 except ImportError:
+    # 在GUI启动前显示错误，因为tkinter可能还未导入
+    import tkinter as tk_error
+    root = tk_error.Tk()
+    root.withdraw()
     messagebox.showerror(
         "依赖缺失",
         "缺少必要的库 (pandas, python-docx)。\n"
@@ -33,7 +38,7 @@ except ImportError:
 
 # ======================== 全局配置 ========================
 CONFIG = {
-    "app_title": "日间手术随访表生成系统 V2.1",
+    "app_title": "日间手术随访表生成系统 V2.2",
     "day_surgery_max_days": 2,
     "column_mapping": {
         "name": "姓名", "department": "出院科室", "hospital_id": "住院号",
@@ -109,7 +114,6 @@ class DocumentGenerator:
 
             self.log("="*30)
             self.log(f"处理完成！成功生成 {success_count} 份文档。")
-            # 恢复成功弹窗中的日期显示
             messagebox.showinfo("完成", f"成功生成 {success_count} 份随访表。\n"
                                      f"统一出院年月为: {patient_year_month}\n"
                                      f"文件保存在: {self.output_dir}")
@@ -191,69 +195,81 @@ class DocumentGenerator:
 
 # ======================== GUI界面类 ========================
 class App:
-    def __init__(self, root):
+    def __init__(self, root, scaling_factor):
         self.root = root
+        self.scaling_factor = scaling_factor
+        self.setup_fonts()
         self.setup_window()
         self.create_widgets()
 
+    def setup_fonts(self):
+        """根据DPI缩放比例设置字体"""
+        self.font_normal = ("微软雅黑", int(9 * self.scaling_factor))
+        self.font_bold = ("微软雅黑", int(10 * self.scaling_factor), "bold")
+        self.font_title = ("微软雅黑", int(20 * self.scaling_factor), "bold")
+        self.font_subtitle = ("微软雅黑", int(16 * self.scaling_factor), "bold")
+        self.font_button = ("微软雅黑", int(12 * self.scaling_factor), "bold")
+        self.font_disclaimer = ("微软雅黑", int(10 * self.scaling_factor))
+
     def setup_window(self):
         self.root.title(CONFIG['app_title'])
-        self.root.geometry("700x650") # 增加窗口高度以容纳新元素
+        self.root.geometry("700x650")
         self.root.minsize(600, 550)
-        # 高DPI适配
-        if sys.platform == 'win32':
-            from ctypes import windll
-            try: windll.shcore.SetProcessDpiAwareness(1)
-            except Exception: pass
 
     def create_widgets(self):
-        # 恢复底部信息栏
-        bottom_frame = tk.Frame(self.root)
+        # 设置主题并获取默认背景色
+        style = ttk.Style(self.root)
+        if "clam" in style.theme_names():
+            style.theme_use("clam")
+        default_bg = style.lookup('TFrame', 'background')
+        self.root.configure(bg=default_bg)
+
+        # --- 底部信息栏 ---
+        bottom_frame = tk.Frame(self.root, bg=default_bg)
         bottom_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=5)
-        tk.Label(bottom_frame, text=f"编程日期：{datetime.now().strftime('%Y年%m月%d日')}", font=("微软雅黑", 9), fg="#666666").pack(side=tk.LEFT)
-        tk.Label(bottom_frame, text="作者：顾江江", font=("微软雅黑", 9), fg="#666666").pack(side=tk.RIGHT)
+        tk.Label(bottom_frame, text=f"编程日期：{datetime.now().strftime('%Y年%m月%d日')}", font=self.font_normal, fg="#666666", bg=default_bg).pack(side=tk.LEFT)
+        tk.Label(bottom_frame, text="作者：顾江江", font=self.font_normal, fg="#666666", bg=default_bg).pack(side=tk.RIGHT)
 
-        # 恢复免责声明
-        disclaimer_frame = tk.Frame(self.root, pady=5)
+        # --- 免责声明 ---
+        disclaimer_frame = tk.Frame(self.root, pady=5, bg=default_bg)
         disclaimer_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10)
-        tk.Label(disclaimer_frame, text="本工具仅供骨科内部测试，请勿外传", font=("微软雅黑", 10), fg="red").pack()
+        tk.Label(disclaimer_frame, text="本工具仅供骨科内部测试，请勿外传", font=self.font_disclaimer, fg="red", bg=default_bg).pack()
         
-        # 恢复顶部标题
-        title_frame = tk.Frame(self.root)
+        # --- 顶部标题 ---
+        title_frame = tk.Frame(self.root, bg=default_bg)
         title_frame.pack(pady=(15, 10))
-        tk.Label(title_frame, text="丹阳市人民医院", font=("微软雅黑", 16, "bold"), fg="#0066cc").pack()
-        tk.Label(title_frame, text="日间手术随访表生成系统", font=("微软雅黑", 20, "bold")).pack(pady=(5, 0))
+        tk.Label(title_frame, text="丹阳市人民医院", font=self.font_subtitle, fg="#0066cc", bg=default_bg).pack()
+        tk.Label(title_frame, text="日间手术随访表生成系统", font=self.font_title, bg=default_bg).pack(pady=(5, 0))
 
-        # 中间核心功能区
+        # --- 中间核心功能区 ---
         content_frame = ttk.Frame(self.root, padding="10")
         content_frame.pack(fill=tk.BOTH, expand=True)
 
         file_frame = ttk.LabelFrame(content_frame, text="步骤1: 选择文件和路径", padding="10")
         file_frame.pack(fill=tk.X, expand=True, pady=5)
-        self.excel_path_var = tk.StringVar()
-        self.template_path_var = tk.StringVar()
-        self.output_dir_var = tk.StringVar()
+        self.excel_path_var, self.template_path_var, self.output_dir_var = tk.StringVar(), tk.StringVar(), tk.StringVar()
         self.create_file_selector(file_frame, "Excel源文件:", self.excel_path_var, self.select_excel_file)
         self.create_file_selector(file_frame, "Word模板:", self.template_path_var, self.select_template_file)
         self.create_file_selector(file_frame, "输出文件夹:", self.output_dir_var, self.select_output_dir)
 
         control_frame = ttk.LabelFrame(content_frame, text="步骤2: 开始生成", padding="10")
         control_frame.pack(fill=tk.X, expand=True, pady=10)
+        style.configure("Accent.TButton", foreground="white", background="#0078D7", font=self.font_button)
         self.start_button = ttk.Button(control_frame, text="开始生成", command=self.start_generation, style="Accent.TButton")
-        self.start_button.pack(pady=5, ipady=5, ipadx=20) # 增加按钮大小
+        self.start_button.pack(pady=5, ipady=5, ipadx=20)
 
         progress_frame = ttk.LabelFrame(content_frame, text="处理进度与日志", padding="10")
         progress_frame.pack(fill=tk.BOTH, expand=True)
         self.progress_bar = ttk.Progressbar(progress_frame, orient='horizontal', mode='determinate')
         self.progress_bar.pack(fill=tk.X, expand=True, pady=5)
-        self.log_text = scrolledtext.ScrolledText(progress_frame, height=10, state='disabled', font=("微软雅黑", 9))
+        self.log_text = scrolledtext.ScrolledText(progress_frame, height=10, state='disabled', font=self.font_normal)
         self.log_text.pack(fill=tk.BOTH, expand=True)
 
     def create_file_selector(self, parent, label_text, string_var, command):
         row_frame = ttk.Frame(parent)
         row_frame.pack(fill=tk.X, expand=True, pady=2)
-        ttk.Label(row_frame, text=label_text, width=12).pack(side=tk.LEFT)
-        ttk.Entry(row_frame, textvariable=string_var, state='readonly').pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
+        ttk.Label(row_frame, text=label_text, width=12, font=self.font_normal).pack(side=tk.LEFT)
+        ttk.Entry(row_frame, textvariable=string_var, state='readonly', font=self.font_normal).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
         ttk.Button(row_frame, text="浏览...", command=command).pack(side=tk.RIGHT)
 
     def select_excel_file(self):
@@ -294,10 +310,15 @@ class App:
 
 # ======================== 主程序入口 ========================
 if __name__ == "__main__":
+    # 关键修复：在创建Tkinter根窗口前设置DPI感知
+    try:
+        import ctypes
+        ctypes.windll.shcore.SetProcessDpiAwareness(1)
+        # 获取缩放比例
+        scaling_factor = ctypes.windll.shcore.GetScaleFactorForDevice(0) / 100
+    except Exception:
+        scaling_factor = 1.0 # 如果失败，则默认为100%
+
     root = tk.Tk()
-    style = ttk.Style(root)
-    if "clam" in style.theme_names():
-        style.theme_use("clam")
-        style.configure("Accent.TButton", foreground="white", background="#0078D7", font=("微软雅黑", 12, "bold"))
-    app = App(root)
+    app = App(root, scaling_factor)
     root.mainloop()
