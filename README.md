@@ -1,10 +1,10 @@
-# 日间手术随访表生成系统 (V1.1)
+# 日间手术随访表生成系统 (V1.2)
 
 这是一个为丹阳市人民医院骨科定制的实用工具，旨在自动化处理日间手术患者的随访表生成流程。程序能够读取包含患者信息的Excel文件，并根据指定的Word模板，为符合条件的患者批量生成独立的随访登记表。
 
 ### 更新日志：[changelog](./docs/changelog.md)
 
-![截图](./docs/images/screenshot_v1.1.png)
+![截图](./docs/images/screenshot_v1.2.png)
 *<p align="center">软件截图</p>*
 
 ---

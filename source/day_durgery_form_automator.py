@@ -180,35 +180,6 @@ def build_column_mapping(header_row):
     """
     return {str(cell).strip(): idx for idx, cell in enumerate(header_row) if cell}
 
-def create_info_frame(parent):
-    """创建信息提示框
-    :param parent: 父容器
-    :return: 信息框架对象
-    """
-    info_frame = tk.Frame(parent, bg="#f0f0f0", padx=10, pady=10)
-    
-    # 免责声明
-    disclaimer = tk.Label(
-        info_frame,
-        text="本工具仅供骨科内部测试，请勿外传，谢谢！",
-        bg="#f0f0f0",
-        fg="red",
-        font=("微软雅黑", 10, "bold")
-    )
-    disclaimer.pack(side=tk.TOP, fill=tk.X)
-    
-    # 作者信息
-    author = tk.Label(
-        info_frame,
-        text="作者：顾江江",
-        bg="#f0f0f0",
-        fg="#333333",
-        font=("微软雅黑", 9)
-    )
-    author.pack(side=tk.TOP, fill=tk.X)
-    
-    return info_frame
-
 def generate_documents():
     """主生成函数"""
     try:
@@ -381,32 +352,73 @@ if __name__ == "__main__":
     
     # 创建主界面
     root = tk.Tk()
-    root.title("日间手术随访表生成系统v1.1")
-    root.geometry("600x300")
+    root.title("日间手术随访表生成系统v1.2")
+    root.geometry("600x400")
     root.resizable(False, False)
 
-    # 添加信息提示框
-    info_frame = create_info_frame(root)
-    info_frame.pack(fill=tk.X, padx=10, pady=(5, 0))
+    # 主标题
+    title_frame = tk.Frame(root)
+    title_frame.pack(pady=(20, 10))
+    
+    tk.Label(
+        title_frame, 
+        text="丹阳市人民医院", 
+        font=("微软雅黑", 14, "bold"),
+        fg="#0066cc"
+    ).pack()
+    
+    tk.Label(
+        title_frame, 
+        text="日间手术随访表生成系统", 
+        font=("微软雅黑", 16, "bold")
+    ).pack(pady=(5, 0))
 
-    # 样式设置
-    font_style = ("微软雅黑", 12)
+    # 开始按钮
     btn_style = {
-        "font": font_style,
+        "font": ("微软雅黑", 12),
         "bg": "#4CAF50",
         "fg": "white",
         "activebackground": "#45a049",
         "padx": 20,
         "pady": 10
     }
-
-    # 开始按钮
-    tk.Label(root, text="日间手术随访表生成系统", font=("微软雅黑", 16)).pack(pady=10)
     tk.Button(
         root, 
         text="开始生成", 
         command=lambda: [root.destroy(), generate_documents()],
         **btn_style
-    ).pack(pady=10)
+    ).pack(pady=20)
+
+    # 底部信息栏
+    bottom_frame = tk.Frame(root)
+    bottom_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=10)
+    
+    # 左下角 - 编程日期
+    tk.Label(
+        bottom_frame,
+        text="编程日期：2025年07月17日",
+        font=("微软雅黑", 9),
+        fg="#666666"
+    ).pack(side=tk.LEFT)
+
+    # 右下角 - 作者信息
+    tk.Label(
+        bottom_frame,
+        text="作者：顾江江",
+        font=("微软雅黑", 9),
+        fg="#666666"
+    ).pack(side=tk.RIGHT)
+
+    # 免责声明
+    disclaimer_frame = tk.Frame(root)
+    disclaimer_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=(0, 10))
+    
+    tk.Label(
+        disclaimer_frame,
+        text="本工具仅供骨科内部测试，请勿外传",
+        font=("微软雅黑", 10),
+        fg="red",
+        bg="#fff0f0"
+    ).pack()
 
     root.mainloop()
