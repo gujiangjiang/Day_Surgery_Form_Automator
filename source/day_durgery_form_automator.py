@@ -10,6 +10,7 @@
 - 可配置关键参数
 - 修正高DPI显示，自动适应系统缩放
 - 修正占位符替换逻辑，支持页眉替换
+- 增加床号缺失检测和提醒功能
 
 作者：顾江江 (由AI优化和修复)
 """
@@ -39,7 +40,7 @@ except ImportError:
 
 # ======================== 全局配置 ========================
 CONFIG = {
-    "app_title": "日间手术随访表生成系统 V2.4",
+    "app_title": "日间手术随访表生成系统 V2.5",
     "day_surgery_max_days": 2,
     "column_mapping": {
         "name": "姓名", "department": "出院科室", "hospital_id": "住院号",
@@ -78,8 +79,10 @@ def get_day_after_discharge(discharge_date_str, days=7):
 class DocumentGenerator:
     def __init__(self, excel_path, template_path, output_dir, app_instance):
         self.excel_path, self.template_path, self.output_dir, self.app = excel_path, template_path, output_dir, app_instance
+        self.bed_number_missing = False # 新增：用于标记床号是否缺失
 
-    def log(self, message): self.app.log_message(message)
+    def log(self, message, level="info"):
+        self.app.log_message(message, level)
     def update_progress(self, value): self.app.update_progress(value)
 
     def run(self):
@@ -99,7 +102,7 @@ class DocumentGenerator:
             day_surgery_df = self.filter_day_surgery_patients(df)
             if day_surgery_df.empty:
                 msg = f"错误：未找到住院天数 <= {CONFIG['day_surgery_max_days']} 天的记录。"
-                self.log(msg)
+                self.log(msg, "error")
                 messagebox.showerror("无数据", msg)
                 return
 
@@ -111,16 +114,23 @@ class DocumentGenerator:
                     self.generate_single_document(row, patient_year_month)
                     success_count += 1
                 except Exception as e:
-                    self.log(f"处理行 {getattr(row, 'Index', 'N/A')} 时发生错误: {e}")
+                    self.log(f"处理行 {getattr(row, 'Index', 'N/A')} 时发生错误: {e}", "error")
                 self.update_progress((index + 1) / total_rows * 100)
 
             self.log("="*30)
             self.log(f"处理完成！成功生成 {success_count} 份文档。")
-            messagebox.showinfo("完成", f"成功生成 {success_count} 份随访表。\n"
-                                     f"统一出院年月为: {patient_year_month}\n"
-                                     f"文件保存在: {self.output_dir}")
+            
+            # 新增：根据床号是否缺失，构建不同的成功消息
+            final_message = f"成功生成 {success_count} 份随访表。\n" \
+                          f"统一出院年月为: {patient_year_month}\n" \
+                          f"文件保存在: {self.output_dir}"
+            if self.bed_number_missing:
+                final_message += "\n\n重要提醒：\n未在Excel中找到“床号”信息，请手动填写生成的文档！"
+            
+            messagebox.showinfo("完成", final_message)
+
         except Exception as e:
-            self.log(f"发生严重错误: {e}")
+            self.log(f"发生严重错误: {e}", "error")
             messagebox.showerror("严重错误", f"处理过程中发生严重错误：\n{e}")
         finally:
             self.app.generation_finished()
@@ -135,7 +145,7 @@ class DocumentGenerator:
                     header_row_index = i
                     break
             if header_row_index == -1:
-                self.log("自动检测标题行失败，请求用户手动输入...")
+                self.log("自动检测标题行失败，请求用户手动输入...", "error")
                 header_row_num = simpledialog.askinteger("设置标题行", "自动检测标题行失败，请手动输入Excel中列标题所在行号（从1开始）：", minvalue=1, maxvalue=100)
                 if not header_row_num: return None
                 header_row_index = header_row_num - 1
@@ -145,6 +155,12 @@ class DocumentGenerator:
                 messagebox.showerror("列名缺失", f"Excel中缺少以下必要列: {', '.join(required_excel_cols - set(df.columns))}")
                 return None
             df.rename(columns={v: k for k, v in CONFIG['column_mapping'].items()}, inplace=True)
+            
+            # 新增：检测床号列是否存在，并记录状态
+            if 'bed_number' not in df.columns:
+                self.bed_number_missing = True
+                self.log("警告：Excel文件中未找到“床号”列。生成文档中的床号需手动填写。", "warning")
+
             return df
         except Exception as e:
             messagebox.showerror("Excel读取失败", f"无法读取或解析Excel文件：\n{e}")
@@ -167,47 +183,36 @@ class DocumentGenerator:
         return df[df['hospital_days'] <= CONFIG['day_surgery_max_days']].copy()
 
     def generate_single_document(self, row_data, patient_year_month):
-        # 准备一个字典来存储所有需要替换的内容
         replacements = {}
-        
-        # 1. 动态生成的值
         replacements["{{患者出院年月}}"] = patient_year_month
         discharge_date_str = excel_date_to_str(getattr(row_data, 'discharge_date', ''))
         replacements["{{随访日期}}"] = get_day_after_discharge(discharge_date_str)
-
-        # 2. 从Excel行数据中提取值
         for placeholder, key in CONFIG['template_placeholders'].items():
             raw_value = getattr(row_data, key, "")
             if "date" in key:
                 replacements[placeholder] = excel_date_to_str(raw_value)
             elif key == "bed_number":
-                replacements[placeholder] = str(raw_value) if pd.notna(raw_value) and str(raw_value).strip() else "（手动填写）"
+                # 如果床号列本身就不存在，则强制为手动填写
+                if self.bed_number_missing:
+                    replacements[placeholder] = "（手动填写）"
+                else:
+                    replacements[placeholder] = str(raw_value) if pd.notna(raw_value) and str(raw_value).strip() else "（手动填写）"
             else:
                 replacements[placeholder] = str(raw_value) if pd.notna(raw_value) else ""
-        
-        # 3. 生成文件名
         patient_name = replacements.get("{{姓名}}", "未知姓名")
         department = replacements.get("{{科室}}", "未知科室")
         filename = f"{patient_year_month}_{department}_日间手术随访_{replacements['{{随访日期}}']}_{patient_name}.docx"
         filename = "".join(c for c in filename if c not in r'\/:*?"<>|')
-        
-        # 4. 加载模板并执行替换
         doc = Document(self.template_path)
         self.perform_replacements(doc, replacements)
         doc.save(os.path.join(self.output_dir, filename))
         self.log(f"已生成: {filename}")
 
     def perform_replacements(self, doc, replacements):
-        """
-        关键修复：在整个文档（包括正文、表格、页眉）中执行文本替换。
-        """
-        # 替换正文段落
         for p in doc.paragraphs:
             for old, new in replacements.items():
                 if old in p.text:
                     p.text = p.text.replace(old, new)
-        
-        # 替换表格中的内容
         for table in doc.tables:
             for row in table.rows:
                 for cell in row.cells:
@@ -215,8 +220,6 @@ class DocumentGenerator:
                         for old, new in replacements.items():
                             if old in p.text:
                                 p.text = p.text.replace(old, new)
-        
-        # 关键修复：替换所有节的页眉中的内容
         for section in doc.sections:
             header = section.header
             for p in header.paragraphs:
@@ -259,6 +262,12 @@ class App:
         default_bg = style.lookup('TFrame', 'background')
         self.root.configure(bg=default_bg)
 
+        # 配置日志颜色
+        self.log_text_tags = {
+            "warning": {"foreground": "orange"},
+            "error": {"foreground": "red"}
+        }
+
         bottom_frame = tk.Frame(self.root, bg=default_bg)
         bottom_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=5)
         tk.Label(bottom_frame, text=f"编程日期：{datetime.now().strftime('%Y年%m月%d日')}", font=self.font_normal, fg="#666666", bg=default_bg).pack(side=tk.LEFT)
@@ -295,6 +304,9 @@ class App:
         self.progress_bar.pack(fill=tk.X, expand=True, pady=5)
         self.log_text = scrolledtext.ScrolledText(progress_frame, height=10, state='disabled', font=self.font_normal)
         self.log_text.pack(fill=tk.BOTH, expand=True)
+        # 为不同级别的日志设置tag
+        for tag, config in self.log_text_tags.items():
+            self.log_text.tag_config(tag, **config)
 
     def create_file_selector(self, parent, label_text, string_var, command):
         row_frame = ttk.Frame(parent)
@@ -315,10 +327,15 @@ class App:
         path = filedialog.askdirectory(title="选择保存位置")
         if path: self.output_dir_var.set(path)
 
-    def log_message(self, msg):
+    def log_message(self, msg, level="info"):
         def append():
             self.log_text.config(state='normal')
-            self.log_text.insert(tk.END, f"{datetime.now().strftime('%H:%M:%S')} - {msg}\n")
+            # 根据日志级别使用不同的tag
+            tag = self.log_text_tags.get(level)
+            if tag:
+                self.log_text.insert(tk.END, f"{datetime.now().strftime('%H:%M:%S')} - {msg}\n", level)
+            else:
+                self.log_text.insert(tk.END, f"{datetime.now().strftime('%H:%M:%S')} - {msg}\n")
             self.log_text.config(state='disabled')
             self.log_text.see(tk.END)
         self.root.after(0, append)
@@ -341,7 +358,6 @@ class App:
 
 # ======================== 主程序入口 ========================
 if __name__ == "__main__":
-    # 关键修复：在创建Tkinter根窗口前设置DPI感知
     try:
         import ctypes
         ctypes.windll.shcore.SetProcessDpiAwareness(1)
