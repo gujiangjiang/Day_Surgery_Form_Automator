@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-日间手术随访表生成系统 (DPI和UI修复版)
+日间手术随访表生成系统 (最终修复版)
 
 功能：
 - 自动从Excel批量生成Word随访表
@@ -8,7 +8,7 @@
 - 自动检测Excel标题行
 - 支持进度条和实时日志
 - 可配置关键参数
-- 修正高DPI显示和UI背景色不一致问题
+- 修正高DPI显示，自动适应系统缩放
 
 作者：顾江江 (由AI优化和修复)
 """
@@ -25,10 +25,10 @@ try:
     from docx import Document
     import pandas as pd
 except ImportError:
-    # 在GUI启动前显示错误，因为tkinter可能还未导入
+    # 在GUI启动前显示错误
     import tkinter as tk_error
-    root = tk_error.Tk()
-    root.withdraw()
+    root_err = tk_error.Tk()
+    root_err.withdraw()
     messagebox.showerror(
         "依赖缺失",
         "缺少必要的库 (pandas, python-docx)。\n"
@@ -38,7 +38,7 @@ except ImportError:
 
 # ======================== 全局配置 ========================
 CONFIG = {
-    "app_title": "日间手术随访表生成系统 V2.2",
+    "app_title": "日间手术随访表生成系统 V2.3",
     "day_surgery_max_days": 2,
     "column_mapping": {
         "name": "姓名", "department": "出院科室", "hospital_id": "住院号",
@@ -195,53 +195,47 @@ class DocumentGenerator:
 
 # ======================== GUI界面类 ========================
 class App:
-    def __init__(self, root, scaling_factor):
+    def __init__(self, root):
         self.root = root
-        self.scaling_factor = scaling_factor
         self.setup_fonts()
         self.setup_window()
         self.create_widgets()
 
     def setup_fonts(self):
-        """根据DPI缩放比例设置字体"""
-        self.font_normal = ("微软雅黑", int(9 * self.scaling_factor))
-        self.font_bold = ("微软雅黑", int(10 * self.scaling_factor), "bold")
-        self.font_title = ("微软雅黑", int(20 * self.scaling_factor), "bold")
-        self.font_subtitle = ("微软雅黑", int(16 * self.scaling_factor), "bold")
-        self.font_button = ("微软雅黑", int(12 * self.scaling_factor), "bold")
-        self.font_disclaimer = ("微软雅黑", int(10 * self.scaling_factor))
+        """设置固定的基础字体大小，Tkinter会根据DPI设置自动缩放"""
+        self.font_normal = ("微软雅黑", 9)
+        self.font_bold = ("微软雅黑", 10, "bold")
+        self.font_title = ("微软雅黑", 20, "bold")
+        self.font_subtitle = ("微软雅黑", 16, "bold")
+        self.font_button = ("微软雅黑", 12, "bold")
+        self.font_disclaimer = ("微软雅黑", 10)
 
     def setup_window(self):
         self.root.title(CONFIG['app_title'])
-        self.root.geometry("700x650")
-        self.root.minsize(600, 550)
+        self.root.geometry("800x950")
+        self.root.resizable(False, False)
 
     def create_widgets(self):
-        # 设置主题并获取默认背景色
         style = ttk.Style(self.root)
         if "clam" in style.theme_names():
             style.theme_use("clam")
         default_bg = style.lookup('TFrame', 'background')
         self.root.configure(bg=default_bg)
 
-        # --- 底部信息栏 ---
         bottom_frame = tk.Frame(self.root, bg=default_bg)
         bottom_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=5)
         tk.Label(bottom_frame, text=f"编程日期：{datetime.now().strftime('%Y年%m月%d日')}", font=self.font_normal, fg="#666666", bg=default_bg).pack(side=tk.LEFT)
         tk.Label(bottom_frame, text="作者：顾江江", font=self.font_normal, fg="#666666", bg=default_bg).pack(side=tk.RIGHT)
 
-        # --- 免责声明 ---
         disclaimer_frame = tk.Frame(self.root, pady=5, bg=default_bg)
         disclaimer_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10)
         tk.Label(disclaimer_frame, text="本工具仅供骨科内部测试，请勿外传", font=self.font_disclaimer, fg="red", bg=default_bg).pack()
         
-        # --- 顶部标题 ---
         title_frame = tk.Frame(self.root, bg=default_bg)
         title_frame.pack(pady=(15, 10))
         tk.Label(title_frame, text="丹阳市人民医院", font=self.font_subtitle, fg="#0066cc", bg=default_bg).pack()
         tk.Label(title_frame, text="日间手术随访表生成系统", font=self.font_title, bg=default_bg).pack(pady=(5, 0))
 
-        # --- 中间核心功能区 ---
         content_frame = ttk.Frame(self.root, padding="10")
         content_frame.pack(fill=tk.BOTH, expand=True)
 
@@ -314,11 +308,10 @@ if __name__ == "__main__":
     try:
         import ctypes
         ctypes.windll.shcore.SetProcessDpiAwareness(1)
-        # 获取缩放比例
-        scaling_factor = ctypes.windll.shcore.GetScaleFactorForDevice(0) / 100
     except Exception:
-        scaling_factor = 1.0 # 如果失败，则默认为100%
+        # 在非Windows系统或旧版Windows上可能会失败，程序仍可运行
+        pass
 
     root = tk.Tk()
-    app = App(root, scaling_factor)
+    app = App(root)
     root.mainloop()
