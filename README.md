@@ -1,45 +1,99 @@
-# 日间手术随访表生成系统 (V1.2)
+# Day Surgery Form Automator (日间手术随访表生成系统)
 
-这是一个为丹阳市人民医院骨科定制的实用工具，旨在自动化处理日间手术患者的随访表生成流程。程序能够读取包含患者信息的Excel文件，并根据指定的Word模板，为符合条件的患者批量生成独立的随访登记表。
+[![Python](https://img.shields.io/badge/Python-3.7+-blue.svg)](https://www.python.org/)
+[![Version](https://img.shields.io/badge/Version-2.6-brightgreen.svg)]()
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
-### 更新日志：[changelog](./docs/changelog.md)
+这是一个功能强大且用户友好的医疗文档自动化工具，专为简化“日间手术随访表”的生成流程而设计。作为原始版本的重大升级，此版本在**代码健壮性、用户体验、可维护性和界面美观度**上都进行了全面的优化和重构。
 
-![截图](./docs/images/screenshot_v1.2.png)
+![截图](./docs/images/screenshot_v2.0.png)
 *<p align="center">软件截图</p>*
 
 ---
 
-## ✨ 主要功能
+## ✨ 核心优势与优化 (V2.0)
 
-- **图形用户界面 (GUI)**: 提供简单的窗口界面进行操作。
-- **文件选择**: 用户可以通过对话框选择源Excel文件、Word模板和输出文件夹。
-- **智能日期处理**: 能够处理多种格式的日期数据。
-- **自动筛选**: 根据“住院天数”自动筛选出符合日间手术条件的患者（住院天数≤2天）。
-- **动态命名**: 生成的Word文档会根据“出院年月_科室_随访日期_姓名”的格式自动命名，方便归档和查找。
-- **模板替换**: 自动将Excel中的患者信息填充到Word模板的指定位置。
+- **现代化的UI/UX**:
+    - **高DPI自适应**: 界面在高分辨率屏幕上显示清晰，字体大小恰当，解决了模糊和错位问题。
+    - **统一的视觉风格**: 所有控件背景色统一，界面更加专业、美观。
+    - **实时进度反馈**: 使用进度条和带颜色区分（警告/错误）的滚动日志框，实时显示处理进度，程序运行状态一目了然。
+    - **智能预警**: 新增**床号缺失提醒**功能，若Excel缺少关键信息，会在日志和最终弹窗中明确提示用户，避免疏漏。
 
-## 🚀 如何使用
+- **高度健壮的内核**:
+    - **全文档替换**: 修复了原先无法替换**页眉**占位符的Bug，确保 `{{科室}}`、`{{患者出院年月}}` 等位于页眉的信息能被正确填充。
+    - **强大的错误处理**: 对文件读取、数据转换等关键步骤增加了全面的 `try-except` 保护，能有效防止因数据格式错误导致的程序崩溃。
+    - **智能标题行检测**: 能够更可靠地自动检测Excel中的标题行，并在失败时引导用户手动输入。
 
-1.  确保您的电脑上安装了Python环境。
-2.  安装所需的依赖库：
-    ```bash
-    pip install pandas openpyxl xlrd python-docx
-    ```
-3.  直接运行 `day_durgery_form_automator.py` 。
-4.  在弹出的窗口中，按提示依次选择Excel文件、Word模板和保存位置。
-5.  程序将自动处理并生成文件。
+- **灵活的配置与维护**:
+    - **中央配置系统**: 将所有关键参数（如日间手术天数定义、Excel列名映射等）提取到脚本顶部的 `CONFIG` 字典中，方便未来快速调整，无需修改核心代码。
+    - **面向对象重构 (OOP)**: 代码被重构为 `App` (界面) 和 `DocumentGenerator` (逻辑) 两个独立的类，结构清晰，极大地提高了代码的可读性和可维护性。
 
-## ⚠️ 注意事项
+- **多线程处理**:
+    - 将耗时的文件生成任务放在独立的线程中执行，确保了GUI在处理过程中始终保持响应，提升了用户体验。
 
-- **Excel格式**: 程序会尝试自动检测标题行，但要求Excel中必须包含“姓名”、“出院科室”、“住院号”、“出院日期”、“住院天数”等关键列。
-- **Word模板**: 模板中需要包含如 `{{姓名}}`, `{{科室}}` 等占位符，程序会查找并替换这些占位符。
-- **环境依赖**: 本程序依赖于第三方库，首次使用前请务必按上述步骤安装。
+## 🚀 安装与运行
 
-## 👨‍💻 作者
+**1. 准备环境**
 
-- **顾江江**
+- 确保您的电脑上安装了 [Python 3.7](https://www.python.org/downloads/) 或更高版本。
+- (推荐) 创建并激活一个虚拟环境，以保持项目依赖的纯净：
+  ```bash
+  python -m venv venv
+  # Windows
+  .\venv\Scripts\activate
+  # macOS / Linux
+  source venv/bin/activate
+  ```
 
-## 📜 免责声明
+**2. 安装依赖**
 
-本工具仅为内部测试和使用而开发，请勿外传。
+项目依赖已记录在 `requirements.txt` 文件中。请在项目根目录下运行以下命令进行安装：
 
+```bash
+pip install -r requirements.txt
+```
+*(如果项目中还未创建 `requirements.txt` 文件，请创建一个并写入以下内容):*
+```
+pandas
+python-docx
+```
+
+**3. 运行程序**
+
+直接运行主脚本文件：
+
+```bash
+python day_durgery_form_automator.py
+```
+
+**4. 打包为EXE (可选)**
+
+如果您希望将程序分享给没有安装Python环境的同事，可以使用 `PyInstaller` 将其打包为单个可执行文件：
+
+```bash
+# 安装 PyInstaller
+pip install pyinstaller
+
+# 执行打包命令 (使用新的英文名)
+python -m PyInstaller --onefile --windowed --icon=app.ico --name="day_durgery_form_automator" day_durgery_form_automator.py
+```
+打包成功后，在生成的 `dist` 文件夹中即可找到 `.exe` 文件。
+
+## 🔧 配置说明
+
+本程序的所有关键配置项均位于脚本顶部的 `CONFIG` 字典中，您可以根据需要进行修改：
+
+- `app_title`: 窗口标题。
+- `day_surgery_max_days`: 定义日间手术的最大住院天数。
+- `column_mapping`: **核心配置**。定义了程序内部字段名与您Excel文件中列名的对应关系。如果您的Excel列名有变，只需修改此处的中文部分即可。
+- `required_internal_keys`: 定义了哪些字段是生成文档所必需的。
+- `template_placeholders`: 定义了Word模板中的占位符与程序内部字段的对应关系。
+
+## 👨‍💻 贡献者
+
+- **原始作者**: 顾江江
+- **重构与优化**: Google AI
+
+## 📜 许可协议
+
+本项目采用 [MIT License](https://opensource.org/licenses/MIT) 开源协议。
