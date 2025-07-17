@@ -9,6 +9,7 @@
 - 支持进度条和实时日志
 - 可配置关键参数
 - 修正高DPI显示，自动适应系统缩放
+- 修正占位符替换逻辑，支持页眉替换
 
 作者：顾江江 (由AI优化和修复)
 """
@@ -38,13 +39,14 @@ except ImportError:
 
 # ======================== 全局配置 ========================
 CONFIG = {
-    "app_title": "日间手术随访表生成系统 V2.3",
+    "app_title": "日间手术随访表生成系统 V2.4",
     "day_surgery_max_days": 2,
     "column_mapping": {
         "name": "姓名", "department": "出院科室", "hospital_id": "住院号",
         "discharge_date": "出院日期", "hospital_days": "住院天数", "gender": "性别",
         "age": "年龄", "bed_number": "床号", "admission_date": "入院日期",
-        "surgery_date": "手术日期", "surgery_name": "手术名称", "diagnosis": "最后诊断1",
+        "surgery_date": "手术日期", "surgery_name": "手术名称", 
+        "diagnosis": "最后诊断1", # 关键修复：根据用户反馈修正列名
         "phone": "联系电话", "doctor": "经治医生"
     },
     "required_internal_keys": [
@@ -165,33 +167,69 @@ class DocumentGenerator:
         return df[df['hospital_days'] <= CONFIG['day_surgery_max_days']].copy()
 
     def generate_single_document(self, row_data, patient_year_month):
-        replacements = {"{{患者出院年月}}": patient_year_month}
+        # 准备一个字典来存储所有需要替换的内容
+        replacements = {}
+        
+        # 1. 动态生成的值
+        replacements["{{患者出院年月}}"] = patient_year_month
         discharge_date_str = excel_date_to_str(getattr(row_data, 'discharge_date', ''))
         replacements["{{随访日期}}"] = get_day_after_discharge(discharge_date_str)
+
+        # 2. 从Excel行数据中提取值
         for placeholder, key in CONFIG['template_placeholders'].items():
             raw_value = getattr(row_data, key, "")
-            if "date" in key: replacements[placeholder] = excel_date_to_str(raw_value)
-            elif key == "bed_number": replacements[placeholder] = str(raw_value) if pd.notna(raw_value) and str(raw_value).strip() else "（手动填写）"
-            else: replacements[placeholder] = str(raw_value) if pd.notna(raw_value) else ""
+            if "date" in key:
+                replacements[placeholder] = excel_date_to_str(raw_value)
+            elif key == "bed_number":
+                replacements[placeholder] = str(raw_value) if pd.notna(raw_value) and str(raw_value).strip() else "（手动填写）"
+            else:
+                replacements[placeholder] = str(raw_value) if pd.notna(raw_value) else ""
+        
+        # 3. 生成文件名
         patient_name = replacements.get("{{姓名}}", "未知姓名")
         department = replacements.get("{{科室}}", "未知科室")
         filename = f"{patient_year_month}_{department}_日间手术随访_{replacements['{{随访日期}}']}_{patient_name}.docx"
         filename = "".join(c for c in filename if c not in r'\/:*?"<>|')
+        
+        # 4. 加载模板并执行替换
         doc = Document(self.template_path)
-        self.perform_replacements_in_doc(doc, replacements)
+        self.perform_replacements(doc, replacements)
         doc.save(os.path.join(self.output_dir, filename))
         self.log(f"已生成: {filename}")
 
-    def perform_replacements_in_doc(self, element, replacements):
-        for p in element.paragraphs:
+    def perform_replacements(self, doc, replacements):
+        """
+        关键修复：在整个文档（包括正文、表格、页眉）中执行文本替换。
+        """
+        # 替换正文段落
+        for p in doc.paragraphs:
             for old, new in replacements.items():
                 if old in p.text:
-                    for i in range(len(p.runs)):
-                        if old in p.runs[i].text: p.runs[i].text = p.runs[i].text.replace(old, new)
-        if hasattr(element, 'tables'):
-            for table in element.tables:
+                    p.text = p.text.replace(old, new)
+        
+        # 替换表格中的内容
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for p in cell.paragraphs:
+                        for old, new in replacements.items():
+                            if old in p.text:
+                                p.text = p.text.replace(old, new)
+        
+        # 关键修复：替换所有节的页眉中的内容
+        for section in doc.sections:
+            header = section.header
+            for p in header.paragraphs:
+                for old, new in replacements.items():
+                    if old in p.text:
+                        p.text = p.text.replace(old, new)
+            for table in header.tables:
                 for row in table.rows:
-                    for cell in row.cells: self.perform_replacements_in_doc(cell, replacements)
+                    for cell in row.cells:
+                        for p in cell.paragraphs:
+                            for old, new in replacements.items():
+                                if old in p.text:
+                                    p.text = p.text.replace(old, new)
 
 # ======================== GUI界面类 ========================
 class App:
@@ -202,7 +240,6 @@ class App:
         self.create_widgets()
 
     def setup_fonts(self):
-        """设置固定的基础字体大小，Tkinter会根据DPI设置自动缩放"""
         self.font_normal = ("微软雅黑", 9)
         self.font_bold = ("微软雅黑", 10, "bold")
         self.font_title = ("微软雅黑", 20, "bold")
@@ -212,7 +249,7 @@ class App:
 
     def setup_window(self):
         self.root.title(CONFIG['app_title'])
-        self.root.geometry("800x950")
+        self.root.geometry("1000x950")
         self.root.resizable(False, False)
 
     def create_widgets(self):
@@ -309,7 +346,6 @@ if __name__ == "__main__":
         import ctypes
         ctypes.windll.shcore.SetProcessDpiAwareness(1)
     except Exception:
-        # 在非Windows系统或旧版Windows上可能会失败，程序仍可运行
         pass
 
     root = tk.Tk()
