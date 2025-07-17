@@ -1,424 +1,376 @@
 # -*- coding: utf-8 -*-
 """
-日间手术随访表生成系统
-功能：自动从Excel生成Word随访表
-作者：顾江江
-声明：本工具仅供骨科内部测试，请勿外传
+日间手术随访表生成系统 (优化修复版)
+
+功能：
+- 自动从Excel批量生成Word随访表
+- GUI界面，操作直观
+- 自动检测Excel标题行
+- 支持进度条和实时日志
+- 可配置关键参数
+
+作者：顾江江 (由AI优化和修复)
 """
 
 import os
 import sys
+import threading
 from datetime import datetime, timedelta
-from collections import defaultdict
 import tkinter as tk
-from tkinter import filedialog, messagebox, simpledialog
-from docx import Document
-import pandas as pd
-from openpyxl import load_workbook
+from tkinter import ttk, filedialog, messagebox, simpledialog, scrolledtext
+
+# 检查并安装必要的库
+try:
+    from docx import Document
+    import pandas as pd
+except ImportError:
+    messagebox.showerror(
+        "依赖缺失",
+        "缺少必要的库 (pandas, python-docx)。\n"
+        "请在命令行运行 'pip install pandas python-docx' 来安装。"
+    )
+    sys.exit(1)
+
+# ======================== 全局配置 ========================
+# 将关键参数放在这里，方便未来修改
+CONFIG = {
+    "app_title": "日间手术随访表生成系统 V2.0",
+    "day_surgery_max_days": 2,  # 定义日间手术的最大住院天数
+
+    # 核心：定义程序内部字段名与Excel列名的映射关系
+    "column_mapping": {
+        # 内部字段名: Excel中的列名
+        "name": "姓名",
+        "department": "出院科室",
+        "hospital_id": "住院号",
+        "discharge_date": "出院日期",
+        "hospital_days": "住院天数",
+        "gender": "性别",
+        "age": "年龄",
+        "bed_number": "床号",
+        "admission_date": "入院日期",
+        "surgery_date": "手术日期",
+        "surgery_name": "手术名称",
+        "diagnosis": "出院诊断",
+        "phone": "联系电话",
+        "doctor": "经治医生"
+    },
+
+    # 定义哪些内部字段是必须存在的
+    "required_internal_keys": [
+        "name", "department", "hospital_id", "discharge_date", "hospital_days"
+    ],
+
+    # 定义Word模板占位符与内部字段名的映射关系
+    "template_placeholders": {
+        "{{科室}}": "department",
+        "{{姓名}}": "name",
+        "{{性别}}": "gender",
+        "{{年龄}}": "age",
+        "{{住院号}}": "hospital_id",
+        "{{床号}}": "bed_number",
+        "{{入院日期}}": "admission_date",
+        "{{出院日期}}": "discharge_date",
+        "{{手术日期}}": "surgery_date",
+        "{{手术名称}}": "surgery_name",
+        "{{出院诊断}}": "diagnosis",
+        "{{联系电话}}": "phone",
+        "{{经治医生}}": "doctor",
+    }
+}
+
 
 # ======================== 工具函数 ========================
-def clean_date_str(date_str):
-    """清洗日期字符串（去除时分秒）
-    :param date_str: 原始日期字符串
-    :return: 仅包含年月日的字符串
-    """
-    if not date_str:
-        return ""
-    return str(date_str).split()[0]  # 取空格前的部分
-
 def excel_date_to_str(excel_date):
-    """智能日期转换（兼容Excel序列号、文本日期和空值）
-    :param excel_date: Excel中的日期数据
-    :return: 格式化的日期字符串
-    """
-    if excel_date in ("", None):
+    """智能转换Excel中的各种日期格式为 'YYYY-MM-DD' 字符串"""
+    if pd.isna(excel_date) or excel_date in ("", None):
         return ""
     try:
-        if isinstance(excel_date, (int, float)):
-            date = datetime(1899, 12, 30) + timedelta(days=float(excel_date))
-            return date.strftime("%Y-%m-%d")  # 仅日期部分
-        else:
-            date_str = str(excel_date)
-            # 尝试多种日期格式
-            for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%Y-%m-%d %H:%M:%S", "%Y/%m/%d %H:%M:%S"):
-                try:
-                    date = datetime.strptime(date_str, fmt)
-                    return date.strftime("%Y-%m-%d")
-                except:
-                    continue
-            return clean_date_str(date_str)  # 最终回退方案
-    except:
-        return clean_date_str(str(excel_date))
+        # 优先使用pandas进行转换，兼容性更强
+        return pd.to_datetime(excel_date).strftime('%Y-%m-%d')
+    except (ValueError, TypeError):
+        # 如果pandas转换失败，使用原始的回退方案
+        return str(excel_date).split()[0]
 
-def get_day_after_discharge(discharge_date, days=7):
-    """计算出院后第N天的日期（自动处理空值）
-    :param discharge_date: 出院日期
-    :param days: 天数间隔
-    :return: 计算后的日期字符串
-    """
-    if discharge_date in ("", None):
+def get_day_after_discharge(discharge_date_str, days=7):
+    """根据出院日期字符串，计算N天后的日期"""
+    if not discharge_date_str:
         return ""
     try:
-        if isinstance(discharge_date, (int, float)):
-            base_date = datetime(1899, 12, 30) + timedelta(days=discharge_date)
-        else:
-            base_date = datetime.strptime(clean_date_str(discharge_date), "%Y-%m-%d")
+        base_date = datetime.strptime(discharge_date_str, "%Y-%m-%d")
         return (base_date + timedelta(days=days)).strftime("%Y-%m-%d")
-    except:
+    except (ValueError, TypeError):
         return ""
 
-def read_excel_smart(path):
-    """智能读取Excel（兼容.xls和.xlsx）
-    :param path: Excel文件路径
-    :return: Excel数据内容
-    """
-    try:
-        if path.endswith('.xlsx'):
-            wb = load_workbook(path)
-            return wb.active
-        else:
-            df = pd.read_excel(path, engine='xlrd')
-            return df.where(pd.notnull(df), None).values.tolist()
-    except Exception as e:
-        raise ValueError(f"读取Excel失败：{str(e)}")
+# ======================== 核心逻辑类 ========================
+class DocumentGenerator:
+    def __init__(self, excel_path, template_path, output_dir, app_instance):
+        self.excel_path = excel_path
+        self.template_path = template_path
+        self.output_dir = output_dir
+        self.app = app_instance
 
-# ======================== 核心功能 ========================
-def detect_header_row(data, required_fields):
-    """自动检测标题行号（从0开始索引）
-    :param data: Excel数据
-    :param required_fields: 必要字段字典
-    :return: 标题行号（从1开始）或None
-    """
-    for row_idx, row in enumerate(data):
-        # 检查当前行是否包含所有必要字段
-        found_fields = set()
-        for cell in row:
-            cell_str = str(cell).strip()
-            if cell_str in required_fields:
-                found_fields.add(cell_str)
-        
-        # 如果找到所有必要字段，返回这一行号（转换为1-based）
-        if found_fields == set(required_fields.keys()):
-            return row_idx + 1  # 转换为1-based
-    
-    return None  # 没有找到合适的标题行
+    def log(self, message):
+        self.app.log_message(message)
 
-def get_header_row_index(data, required_fields):
-    """智能获取标题行号（先自动检测，失败则GUI询问）
-    :param data: Excel数据
-    :param required_fields: 必要字段字典
-    :return: 标题行号
-    """
-    # 尝试自动检测
-    auto_detected = detect_header_row(data, required_fields)
-    if auto_detected is not None:
-        return auto_detected
-    
-    # 自动检测失败，使用GUI询问
-    root = tk.Tk()
-    root.withdraw()
-    return simpledialog.askinteger(
-        "设置标题行",
-        "自动检测标题行失败，请手动输入Excel中列标题所在行号（从1开始）：\n\n"
-        "例如：\n"
-        "• 如果有3行表头，输入4\n"
-        "• 如果首行就是列标题，输入1",
-        parent=root,
-        minvalue=1,
-        maxvalue=100
-    )
+    def update_progress(self, value):
+        self.app.update_progress(value)
 
-def analyze_date_distribution(data, date_col_idx, header_row_idx):
-    """分析出院日期分布情况（改为使用出院日期）
-    :param data: Excel数据
-    :param date_col_idx: 日期列索引
-    :param header_row_idx: 标题行号
-    :return: 月份统计字典, 样本字典
-    """
-    month_counts = defaultdict(int)
-    month_samples = defaultdict(list)
-    
-    for row in data[header_row_idx:]:
-        date_str = excel_date_to_str(row[date_col_idx])
-        if date_str:
-            month_key = date_str[:7]  # YYYY-MM
-            month_counts[month_key] += 1
-            name = str(row[0]) if row[0] else "未知患者"
-            month_samples[month_key].append(name)
-    return month_counts, month_samples
-
-def select_date_mode_gui(month_counts, month_samples):
-    """GUI界面选择主导月份
-    :param month_counts: 月份统计字典
-    :param month_samples: 样本字典
-    :return: 选择的月份字符串
-    """
-    if len(month_counts) == 1:
-        return list(month_counts.keys())[0]
-    
-    root = tk.Tk()
-    root.withdraw()
-    
-    options = []
-    for month, count in month_counts.items():
-        sample_names = ", ".join(month_samples[month][:3])
-        if len(month_samples[month]) > 3:
-            sample_names += "等"
-        options.append(f"{month}月（共{count}例，如：{sample_names}）")
-    
-    choice = simpledialog.askstring(
-        "选择主导月份",
-        "发现多个出院月份，请选择：\n" + "\n".join(options),
-        parent=root
-    )
-    return choice.split("月")[0] if choice else None
-
-def build_column_mapping(header_row):
-    """动态建立列名到索引的映射
-    :param header_row: 标题行数据
-    :return: 列名到索引的字典
-    """
-    return {str(cell).strip(): idx for idx, cell in enumerate(header_row) if cell}
-
-def generate_documents():
-    """主生成函数"""
-    try:
-        # ========== 1. 文件选择 ==========
-        root = tk.Tk()
-        root.withdraw()
-        
-        excel_path = filedialog.askopenfilename(
-            title="选择出院患者记录单",
-            filetypes=[("Excel文件", "*.xlsx *.xls"), ("所有文件", "*.*")]
-        )
-        if not excel_path:
-            return
-
-        template_path = filedialog.askopenfilename(
-            title="选择随访表模板",
-            filetypes=[("Word模板", "*.docx"), ("所有文件", "*.*")]
-        )
-        if not template_path:
-            return
-
-        output_dir = filedialog.askdirectory(title="选择保存位置")
-        if not output_dir:
-            return
-
-        # ========== 2. 数据准备 ==========
-        # 智能读取Excel
+    def run(self):
+        """执行生成过程的主方法"""
         try:
-            excel_data = read_excel_smart(excel_path)
-            if isinstance(excel_data, list):  # .xls格式
-                data = excel_data
-            else:  # .xlsx格式
-                data = list(excel_data.iter_rows(values_only=True))
-        except Exception as e:
-            messagebox.showerror("错误", f"读取Excel失败：{str(e)}")
-            return
+            self.log("开始读取Excel文件...")
+            df = self.read_and_prepare_excel()
+            if df is None: return
 
-        # 定义必要字段
-        required_fields = {
-            "姓名": "患者姓名",
-            "出院科室": "科室信息",
-            "住院号": "住院编号",
-            "出院日期": "出院时间",
-            "住院天数": "住院时长"
-        }
+            self.log("分析出院日期分布...")
+            selected_month = self.determine_dominant_month(df)
+            if not selected_month:
+                self.log("用户取消或无有效数据，操作中止。")
+                return
+            patient_year_month = f"{selected_month[:4]}年{selected_month[5:]}月"
+            self.log(f"已确定主导月份为: {patient_year_month}")
 
-        # 获取标题行（先尝试自动检测）
-        header_row_idx = get_header_row_index(data, required_fields)
-        if not header_row_idx:
-            return
-
-        # 动态列映射
-        col_map = build_column_mapping(data[header_row_idx - 1])
-        
-        # 检查必要字段
-        missing_fields = [name for field, name in required_fields.items() if field not in col_map]
-        if missing_fields:
-            messagebox.showerror(
-                "错误",
-                f"Excel中缺少以下必要列:\n{', '.join(missing_fields)}\n\n"
-                f"当前识别的列标题：\n{', '.join(col_map.keys())}"
-            )
-            return
-
-        # 检查床号
-        bed_warning = "床号" not in col_map
-        if bed_warning:
-            if not messagebox.askyesno("提示", "未找到床号信息，将在模板中显示为'（请手动填写）'。是否继续？"):
+            day_surgery_df = self.filter_day_surgery_patients(df)
+            if day_surgery_df.empty:
+                self.log(f"错误：未找到住院天数 <= {CONFIG['day_surgery_max_days']} 天的记录。")
+                messagebox.showerror("无数据", f"未找到住院天数 <= {CONFIG['day_surgery_max_days']} 天的记录。")
                 return
 
-        # ========== 3. 智能日期处理（改为使用出院日期） ==========
-        month_counts, month_samples = analyze_date_distribution(
-            data, col_map["出院日期"], header_row_idx
-        )
-        if not month_counts:
-            messagebox.showerror("错误", "未找到有效的出院日期数据！")
-            return
-
-        selected_month = select_date_mode_gui(month_counts, month_samples)
-        if not selected_month:
-            return
-
-        patient_year_month = f"{selected_month[:4]}年{selected_month[5:]}月"
-
-        # ========== 4. 文档生成 ==========
-        success_count = 0
-        for row in data[header_row_idx:]:
-            # 检查是否为日间手术（住院天数≤2天）
-            try:
-                if int(row[col_map["住院天数"]]) <= 2:  # 关键修改：确保转换为整数比较
-                    # 关键字段提取
-                    出院科室 = str(row[col_map["出院科室"]]) if row[col_map["出院科室"]] else "未知科室"
-                    姓名 = str(row[col_map["姓名"]]) if row[col_map["姓名"]] else "未知姓名"
-                    出院日期 = row[col_map["出院日期"]]
-
-                    # 生成文件名
-                    filename = (
-                        f"{patient_year_month}"
-                        f"{出院科室}日间手术随访登记表_"
-                        f"{get_day_after_discharge(出院日期)}_{姓名}.docx"
-                    )
-                    output_path = os.path.join(output_dir, filename)
-
-                    # 替换模板内容
-                    doc = Document(template_path)
-                    replacements = {
-                        "{{患者出院年月}}": patient_year_month,  # 改为出院年月
-                        "{{科室}}": 出院科室,
-                        "{{姓名}}": 姓名,
-                        "{{性别}}": str(row[col_map.get("性别", "")] or ""),
-                        "{{年龄}}": str(row[col_map.get("年龄", "")] or ""),
-                        "{{住院号}}": str(row[col_map["住院号"]] or ""),
-                        "{{床号}}": str(row[col_map["床号"]] if not bed_warning and "床号" in col_map else "（请手动填写）"),
-                        "{{入院日期}}": excel_date_to_str(row[col_map.get("入院日期", "")]),
-                        "{{出院日期}}": excel_date_to_str(出院日期),
-                        "{{手术日期}}": excel_date_to_str(row[col_map.get("手术日期", "")]),
-                        "{{手术名称}}": str(row[col_map.get("手术名称", "")] or ""),
-                        "{{出院诊断}}": str(row[col_map.get("最后诊断1", "")] or ""),
-                        "{{联系电话}}": str(row[col_map.get("联系电话", "")] or ""),
-                        "{{经治医生}}": str(row[col_map.get("经治医生", "")] or ""),
-                        "{{随访日期}}": get_day_after_discharge(出院日期)
-                    }
-
-                    # 全文档替换
-                    for paragraph in doc.paragraphs:
-                        for old, new in replacements.items():
-                            if old in paragraph.text:
-                                paragraph.text = paragraph.text.replace(old, new)
-
-                    for table in doc.tables:
-                        for row in table.rows:
-                            for cell in row.cells:
-                                for old, new in replacements.items():
-                                    if old in cell.text:
-                                        cell.text = cell.text.replace(old, new)
-
-                    doc.save(output_path)
+            total_rows = len(day_surgery_df)
+            self.log(f"共找到 {total_rows} 条符合条件的记录，开始生成文档...")
+            success_count = 0
+            for index, row in enumerate(day_surgery_df.itertuples()):
+                try:
+                    self.generate_single_document(row, patient_year_month)
                     success_count += 1
-                    print(f"已生成：{filename}")  # 调试用
+                except Exception as e:
+                    self.log(f"处理行 {getattr(row, 'Index', 'N/A')} 时发生错误: {e}")
+                self.update_progress((index + 1) / total_rows * 100)
 
-            except Exception as e:
-                print(f"处理第{data.index(row)+1}行时出错：{str(e)}")
+            self.log("="*30)
+            self.log(f"处理完成！成功生成 {success_count} 份文档。")
+            messagebox.showinfo("完成", f"成功生成 {success_count} 份随访表。\n文件保存在: {self.output_dir}")
 
-        # ========== 5. 完成提示 ==========
-        if success_count > 0:
-            messagebox.showinfo(
-                "完成",
-                f"成功生成 {success_count} 份随访表\n"
-                f"保存位置：{output_dir}\n"
-                f"统一出院年月：{patient_year_month}"
-            )
-        else:
-            messagebox.showerror(
-                "错误",
-                "未生成任何文档！可能原因：\n"
-                "1. 没有住院天数=1的记录\n"
-                "2. 日期格式不正确\n"
-                "3. 必要列数据缺失"
-            )
+        except Exception as e:
+            self.log(f"发生严重错误: {e}")
+            messagebox.showerror("严重错误", f"处理过程中发生严重错误：\n{e}")
+        finally:
+            self.app.generation_finished()
 
-    except Exception as e:
-        messagebox.showerror("错误", f"处理过程中出错：{str(e)}")
+    def read_and_prepare_excel(self):
+        """读取Excel，找到标题行，并将列名转换为内部标准字段名"""
+        try:
+            df_full = pd.read_excel(self.excel_path, sheet_name=0, header=None, dtype=str)
+            
+            required_excel_cols = {CONFIG['column_mapping'][key] for key in CONFIG['required_internal_keys']}
 
-# ======================== 主程序 ========================
+            header_row_index = -1
+            for i, row in df_full.iterrows():
+                row_values = set(str(v).strip() for v in row.dropna())
+                if required_excel_cols.issubset(row_values):
+                    header_row_index = i
+                    break
+            
+            if header_row_index == -1:
+                self.log("自动检测标题行失败，请求用户手动输入...")
+                header_row_num = simpledialog.askinteger("设置标题行", "自动检测标题行失败，请手动输入Excel中列标题所在行号（从1开始）：", minvalue=1, maxvalue=100)
+                if not header_row_num: return None
+                header_row_index = header_row_num - 1
+
+            df = pd.read_excel(self.excel_path, sheet_name=0, header=header_row_index)
+            df.columns = [str(col).strip() for col in df.columns]
+
+            missing_cols = required_excel_cols - set(df.columns)
+            if missing_cols:
+                messagebox.showerror("列名缺失", f"Excel中缺少以下必要列: {', '.join(missing_cols)}")
+                return None
+            
+            reverse_mapping = {v: k for k, v in CONFIG['column_mapping'].items()}
+            df.rename(columns=reverse_mapping, inplace=True)
+            
+            return df
+        except Exception as e:
+            messagebox.showerror("Excel读取失败", f"无法读取或解析Excel文件：\n{e}")
+            return None
+
+    def determine_dominant_month(self, df):
+        """分析出院日期，让用户选择主导月份"""
+        # 使用内部标准字段名 'discharge_date'
+        df['discharge_month'] = pd.to_datetime(df['discharge_date'], errors='coerce').dt.strftime('%Y-%m')
+        
+        month_counts = df['discharge_month'].value_counts().to_dict()
+        month_counts.pop(None, None)
+
+        if not month_counts:
+            date_col_excel_name = CONFIG['column_mapping']['discharge_date']
+            messagebox.showerror("无有效日期", f"在“{date_col_excel_name}”列中未找到任何有效的日期。")
+            return None
+        
+        if len(month_counts) == 1:
+            return list(month_counts.keys())[0]
+
+        options = [f"{month} ({count}例)" for month, count in month_counts.items()]
+        choice = simpledialog.askstring("选择主导月份", "发现多个出院月份，请选择一个作为文件命名和标题的主导月份：\n\n" + "\n".join(options))
+        return choice.split(" ")[0] if choice else None
+
+    def filter_day_surgery_patients(self, df):
+        """根据住院天数筛选患者"""
+        # 使用内部标准字段名 'hospital_days'
+        df['hospital_days'] = pd.to_numeric(df['hospital_days'], errors='coerce')
+        return df[df['hospital_days'] <= CONFIG['day_surgery_max_days']].copy()
+
+    def generate_single_document(self, row_data, patient_year_month):
+        """为单条记录生成Word文档"""
+        replacements = {}
+        
+        # 1. 处理特殊生成值
+        replacements["{{患者出院年月}}"] = patient_year_month
+        discharge_date_str = excel_date_to_str(getattr(row_data, 'discharge_date', ''))
+        replacements["{{随访日期}}"] = get_day_after_discharge(discharge_date_str)
+
+        # 2. 循环处理模板中定义的占位符
+        for placeholder, internal_key in CONFIG['template_placeholders'].items():
+            raw_value = getattr(row_data, internal_key, "")
+            
+            if "date" in internal_key:
+                replacements[placeholder] = excel_date_to_str(raw_value)
+            elif internal_key == "bed_number":
+                replacements[placeholder] = str(raw_value) if pd.notna(raw_value) and str(raw_value).strip() else "（手动填写）"
+            else:
+                replacements[placeholder] = str(raw_value) if pd.notna(raw_value) else ""
+
+        # 3. 生成文件名
+        patient_name = replacements.get("{{姓名}}", "未知姓名")
+        department = replacements.get("{{科室}}", "未知科室")
+        follow_up_date_for_filename = replacements.get("{{随访日期}}", "未知日期")
+        
+        filename = f"{patient_year_month}_{department}_日间手术随访_{follow_up_date_for_filename}_{patient_name}.docx"
+        filename = "".join(c for c in filename if c not in r'\/:*?"<>|')
+        output_path = os.path.join(self.output_dir, filename)
+
+        # 4. 执行替换并保存
+        doc = Document(self.template_path)
+        self.perform_replacements_in_doc(doc, replacements)
+        doc.save(output_path)
+        self.log(f"已生成: {filename}")
+
+    def perform_replacements_in_doc(self, element, replacements):
+        """在文档元素（文档、单元格）中递归执行文本替换"""
+        for p in element.paragraphs:
+            for old, new in replacements.items():
+                if old in p.text:
+                    inline = p.runs
+                    for i in range(len(inline)):
+                        if old in inline[i].text:
+                            text = inline[i].text.replace(old, new)
+                            inline[i].text = text
+        
+        if hasattr(element, 'tables'):
+            for table in element.tables:
+                for row in table.rows:
+                    for cell in row.cells:
+                        self.perform_replacements_in_doc(cell, replacements)
+
+# ======================== GUI界面类 ========================
+class App:
+    def __init__(self, root):
+        self.root = root
+        self.setup_window()
+        self.create_widgets()
+
+    def setup_window(self):
+        self.root.title(CONFIG['app_title'])
+        self.root.geometry("700x550")
+        self.root.minsize(600, 500)
+        if sys.platform == 'win32':
+            from ctypes import windll
+            try: windll.shcore.SetProcessDpiAwareness(1)
+            except Exception: pass
+
+    def create_widgets(self):
+        main_frame = ttk.Frame(self.root, padding="10")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        file_frame = ttk.LabelFrame(main_frame, text="步骤1: 选择文件和路径", padding="10")
+        file_frame.pack(fill=tk.X, expand=True)
+        
+        self.excel_path_var = tk.StringVar()
+        self.template_path_var = tk.StringVar()
+        self.output_dir_var = tk.StringVar()
+
+        self.create_file_selector(file_frame, "Excel源文件:", self.excel_path_var, self.select_excel_file)
+        self.create_file_selector(file_frame, "Word模板:", self.template_path_var, self.select_template_file)
+        self.create_file_selector(file_frame, "输出文件夹:", self.output_dir_var, self.select_output_dir)
+
+        control_frame = ttk.LabelFrame(main_frame, text="步骤2: 开始生成", padding="10")
+        control_frame.pack(fill=tk.X, expand=True, pady=10)
+        
+        self.start_button = ttk.Button(control_frame, text="开始生成", command=self.start_generation, style="Accent.TButton")
+        self.start_button.pack(pady=5)
+        
+        progress_frame = ttk.LabelFrame(main_frame, text="处理进度与日志", padding="10")
+        progress_frame.pack(fill=tk.BOTH, expand=True)
+
+        self.progress_bar = ttk.Progressbar(progress_frame, orient='horizontal', mode='determinate')
+        self.progress_bar.pack(fill=tk.X, expand=True, pady=5)
+        
+        self.log_text = scrolledtext.ScrolledText(progress_frame, height=10, state='disabled', font=("微软雅黑", 9))
+        self.log_text.pack(fill=tk.BOTH, expand=True)
+
+    def create_file_selector(self, parent, label_text, string_var, command):
+        row_frame = ttk.Frame(parent)
+        row_frame.pack(fill=tk.X, expand=True, pady=2)
+        ttk.Label(row_frame, text=label_text, width=12).pack(side=tk.LEFT)
+        ttk.Entry(row_frame, textvariable=string_var, state='readonly').pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
+        ttk.Button(row_frame, text="浏览...", command=command).pack(side=tk.RIGHT)
+
+    def select_excel_file(self):
+        path = filedialog.askopenfilename(title="选择出院患者记录单", filetypes=[("Excel文件", "*.xlsx *.xls")])
+        if path: self.excel_path_var.set(path)
+
+    def select_template_file(self):
+        path = filedialog.askopenfilename(title="选择随访表模板", filetypes=[("Word模板", "*.docx")])
+        if path: self.template_path_var.set(path)
+
+    def select_output_dir(self):
+        path = filedialog.askdirectory(title="选择保存位置")
+        if path: self.output_dir_var.set(path)
+
+    def log_message(self, msg):
+        def append():
+            self.log_text.config(state='normal')
+            self.log_text.insert(tk.END, f"{datetime.now().strftime('%H:%M:%S')} - {msg}\n")
+            self.log_text.config(state='disabled')
+            self.log_text.see(tk.END)
+        self.root.after(0, append)
+
+    def update_progress(self, value):
+        self.root.after(0, lambda: self.progress_bar.config(value=value))
+
+    def start_generation(self):
+        if not all([self.excel_path_var.get(), self.template_path_var.get(), self.output_dir_var.get()]):
+            messagebox.showwarning("信息不全", "请先选择好Excel源文件、Word模板和输出文件夹。")
+            return
+
+        self.start_button.config(state='disabled')
+        self.progress_bar['value'] = 0
+        self.log_text.config(state='normal'); self.log_text.delete('1.0', tk.END); self.log_text.config(state='disabled')
+
+        generator = DocumentGenerator(self.excel_path_var.get(), self.template_path_var.get(), self.output_dir_var.get(), self)
+        threading.Thread(target=generator.run, daemon=True).start()
+
+    def generation_finished(self):
+        self.root.after(0, lambda: self.start_button.config(state='normal'))
+
+
+# ======================== 主程序入口 ========================
 if __name__ == "__main__":
-    # Windows高DPI适配
-    if sys.platform == 'win32':
-        from ctypes import windll
-        windll.shcore.SetProcessDpiAwareness(1)
-    
-    # 创建主界面
     root = tk.Tk()
-    root.title("日间手术随访表生成系统v1.2")
-    root.geometry("600x400")
-    root.resizable(False, False)
-
-    # 主标题
-    title_frame = tk.Frame(root)
-    title_frame.pack(pady=(20, 10))
+    style = ttk.Style(root)
+    if "clam" in style.theme_names():
+        style.theme_use("clam")
+        style.configure("Accent.TButton", foreground="white", background="#0078D7")
     
-    tk.Label(
-        title_frame, 
-        text="丹阳市人民医院", 
-        font=("微软雅黑", 14, "bold"),
-        fg="#0066cc"
-    ).pack()
-    
-    tk.Label(
-        title_frame, 
-        text="日间手术随访表生成系统", 
-        font=("微软雅黑", 16, "bold")
-    ).pack(pady=(5, 0))
-
-    # 开始按钮
-    btn_style = {
-        "font": ("微软雅黑", 12),
-        "bg": "#4CAF50",
-        "fg": "white",
-        "activebackground": "#45a049",
-        "padx": 20,
-        "pady": 10
-    }
-    tk.Button(
-        root, 
-        text="开始生成", 
-        command=lambda: [root.destroy(), generate_documents()],
-        **btn_style
-    ).pack(pady=20)
-
-    # 底部信息栏
-    bottom_frame = tk.Frame(root)
-    bottom_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=10)
-    
-    # 左下角 - 编程日期
-    tk.Label(
-        bottom_frame,
-        text="编程日期：2025年07月17日",
-        font=("微软雅黑", 9),
-        fg="#666666"
-    ).pack(side=tk.LEFT)
-
-    # 右下角 - 作者信息
-    tk.Label(
-        bottom_frame,
-        text="作者：顾江江",
-        font=("微软雅黑", 9),
-        fg="#666666"
-    ).pack(side=tk.RIGHT)
-
-    # 免责声明
-    disclaimer_frame = tk.Frame(root)
-    disclaimer_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=(0, 10))
-    
-    tk.Label(
-        disclaimer_frame,
-        text="本工具仅供骨科内部测试，请勿外传",
-        font=("微软雅黑", 10),
-        fg="red",
-        bg="#fff0f0"
-    ).pack()
-
+    app = App(root)
     root.mainloop()
