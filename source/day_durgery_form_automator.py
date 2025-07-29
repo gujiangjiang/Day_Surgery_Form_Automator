@@ -2,14 +2,12 @@
 """
 日间手术随访表生成系统 (功能增强版)
 
-版本 V5.2 (启动修正版) 更新内容:
-- [启动画面修正] 采用更稳妥的 root.after(200, close_splash) 方式代替 after_idle，彻底修复因时序问题导致的启动画面残留和“未响应”的顽固问题。
+版本 V5.3 (终极启动修正版) 更新内容:
+- [启动画面修正] 采用 root.lift() 和 root.focus_force() 强制主窗口获取焦点，再延时关闭启动画面。
+- 这是一种更底层的窗口管理方式，旨在彻底解决因窗口控制权交接不完整导致的启动画面残留和“未响应”的顽固问题。
 
-版本 V5.1 更新内容:
-- [启动画面修正] 尝试使用after_idle修复启动画面无法自动关闭的问题。
-
-版本 V5.0 更新内容:
-- [UI优化] 程序启动时窗口会自动居中显示，提升用户体验。
+版本 V5.2 更新内容:
+- [启动画面修正] 采用 root.after(200, close_splash) 方式代替 after_idle。
 
 作者：顾江江 (由AI优化和修复)
 """
@@ -45,7 +43,7 @@ except ImportError:
 
 # ======================== 全局配置 ========================
 CONFIG = {
-    "app_title": "日间手术随访表生成系统 V5.2",
+    "app_title": "日间手术随访表生成系统 V5.3",
     "day_surgery_max_days": 2,
     "follow_up_days": 7,  # 随访发生于出院后的天数
     "unknown_bed_placeholder": "（手动填写）", # Word内容中的床号未知占位符
@@ -542,10 +540,21 @@ if __name__ == "__main__":
     root = tk.Tk()
     app = App(root)
 
-    # V5.2修正：使用 root.after() 给予一个短暂的延迟
-    # 这是最稳妥的方式，可以确保主窗口完全初始化后再关闭启动画面，避免时序问题
+    # V5.3 终极修正: 定义一个函数来强制获取窗口焦点并关闭启动画面
+    def finalize_startup():
+        """
+        A robust function to ensure the main window is active
+        before closing the splash screen. This prevents the "Not Responding"
+        issue by making sure the window manager knows who is in control.
+        """
+        root.lift()
+        root.focus_force()
+        nuitka_splashscreen_python.close()
+
+    # 使用 root.after() 来调度这个终极修正函数
+    # 给予一个短暂但足够的延迟，以确保主窗口的事件循环完全接管
     if splash_active:
-        root.after(200, nuitka_splashscreen_python.close)
+        root.after(300, finalize_startup)
         
     root.mainloop()
 
