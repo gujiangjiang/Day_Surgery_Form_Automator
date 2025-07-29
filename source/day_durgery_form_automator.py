@@ -2,13 +2,13 @@
 """
 日间手术随访表生成系统 (功能增强版)
 
-版本 V3.3 更新内容:
-- [DPI适配] 新增动态缩放功能，程序可自动检测屏幕DPI并缩放所有UI元素，解决了在普通和高分屏上显示错位或大小不当的问题。
-- [布局修正] 将主标题移至顶层框架，确保其在程序窗口内全局居中显示。
-- 移除了固定的初始窗口大小，让程序根据屏幕缩放比例自适应，并设定了缩放后的最小尺寸。
+版本 V3.4 更新内容:
+- [UI终版修正] 移除所有手动DPI缩放逻辑，改为依赖操作系统原生渲染，从根本上解决在不同分辨率屏幕上的显示问题。
+- [布局终版修正] 固定了更紧凑的初始窗口大小(1100x700)，并调整左右分栏权重为3:1，使操作区更突出。
 
-版本 V3.2 更新内容:
-- [UI重构] 使用PanedWindow控件重写主界面，实现可拖拽调整的左右分栏布局。
+版本 V3.3 更新内容:
+- [DPI适配] 尝试使用动态缩放功能。 (此方案已在V3.4中被取代)
+- [布局修正] 将主标题移至顶层框架，确保其在程序窗口内全局居中显示。
 
 作者：顾江江 (由AI优化和修复)
 """
@@ -37,7 +37,7 @@ except ImportError:
 
 # ======================== 全局配置 ========================
 CONFIG = {
-    "app_title": "日间手术随访表生成系统 V3.3",
+    "app_title": "日间手术随访表生成系统 V3.4",
     "day_surgery_max_days": 2,
     "column_mapping": {
         "name": "姓名", "department": "出院科室", "hospital_id": "住院号",
@@ -296,40 +296,24 @@ class App:
         self.root = root
         self.surgery_query_files = []
         
-        # V3.3: DPI Scaling
-        self.scaling_factor = self._get_scaling_factor()
-        
         self.setup_fonts()
         self.setup_window()
         self.create_widgets()
 
-    def _get_scaling_factor(self):
-        """获取屏幕缩放比例"""
-        try:
-            # 在Windows上，SetProcessDpiAwareness(1)调用后，Tkinter可以获取正确的DPI
-            dpi = self.root.winfo_fpixels('1i')
-            scaling = dpi / 96.0 # Windows标准DPI是96
-            return scaling
-        except Exception:
-            return 1.0 # 失败则返回默认值
-
     def setup_fonts(self):
-        """根据缩放比例设置所有字体大小"""
-        s = self.scaling_factor
-        self.font_normal = ("微软雅黑", int(9 * s))
-        self.font_bold = ("微软雅黑", int(10 * s), "bold")
-        self.font_title = ("微软雅黑", int(20 * s), "bold")
-        self.font_subtitle = ("微软雅黑", int(16 * s), "bold")
-        self.font_button = ("微软雅黑", int(12 * s), "bold")
-        self.font_disclaimer = ("微软雅黑", int(10 * s))
+        """V3.4: 使用固定的字体大小，不再手动缩放"""
+        self.font_normal = ("微软雅黑", 9)
+        self.font_bold = ("微软雅黑", 10, "bold")
+        self.font_title = ("微软雅黑", 20, "bold")
+        self.font_subtitle = ("微软雅黑", 16, "bold")
+        self.font_button = ("微软雅黑", 12, "bold")
+        self.font_disclaimer = ("微软雅黑", 10)
 
     def setup_window(self):
-        """设置窗口属性，移除固定大小，使用可缩放的最小尺寸"""
+        """V3.4: 设置固定的初始大小和最小尺寸"""
         self.root.title(CONFIG['app_title'])
-        # 移除固定的geometry，让窗口自适应内容
-        # self.root.geometry("1200x800")
-        s = self.scaling_factor
-        self.root.minsize(int(1000 * s), int(600 * s))
+        self.root.geometry("1100x700") # 提供一个合理的初始大小
+        self.root.minsize(900, 550)    # 设置一个合理的最小尺寸
         self.root.resizable(True, True)
 
     def create_widgets(self):
@@ -338,8 +322,6 @@ class App:
         default_bg = style.lookup('TFrame', 'background')
         self.root.configure(bg=default_bg)
         self.log_text_tags = {"warning": {"foreground": "orange"}, "error": {"foreground": "red"}}
-
-        # --- V3.3: 布局重构 ---
 
         # 底部信息栏
         bottom_frame = tk.Frame(self.root, bg=default_bg)
@@ -363,11 +345,11 @@ class App:
 
         # 左侧控制面板
         left_panel = ttk.Frame(main_pane, padding="10")
-        main_pane.add(left_panel, weight=2)
+        main_pane.add(left_panel, weight=3) # V3.4: 左侧权重增大为3
 
         # 右侧日志面板
         right_panel = ttk.Frame(main_pane, padding="10")
-        main_pane.add(right_panel, weight=1)
+        main_pane.add(right_panel, weight=1) # V3.4: 右侧权重为1
 
         # --- 将控件填充到左侧面板 ---
         file_frame = ttk.LabelFrame(left_panel, text="步骤1: 选择文件和路径", padding="10")
@@ -482,7 +464,7 @@ class App:
 # ======================== 主程序入口 ========================
 if __name__ == "__main__":
     try:
-        # V3.3: 这是在Windows上实现DPI感知的关键步骤
+        # V3.4: 仍然保留此调用，它在Windows上是无害且推荐的，能让Tkinter更好地与系统交互。
         import ctypes
         ctypes.windll.shcore.SetProcessDpiAwareness(1)
     except Exception:
