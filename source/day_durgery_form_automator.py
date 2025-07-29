@@ -2,13 +2,13 @@
 """
 日间手术随访表生成系统 (功能增强版)
 
-版本 V3.6 更新内容:
-- [UI终版] 恢复可拖拽的左右分栏布局，并优化初始宽度比例为4:3，使布局更协调。
-- [UI终版] 修正了左右两栏边框对齐的问题，视觉效果更统一。
-- [UI终版] 恢复窗口可调整大小的功能，并设定了合理的最小尺寸。
+版本 V3.7 更新内容:
+- [UI终版] 严格按照用户要求，将窗口固定为800x600且不可调整大小。
+- [UI终版] 使用精确定位重写布局，确保左侧操作区为主体，并大幅压缩控件间距，使布局更紧凑。
+- [UI终版] 放弃所有不稳定的自动布局与DPI适配方案，确保在所有屏幕上显示效果高度一致。
 
-版本 V3.5 更新内容:
-- [布局修正] 尝试使用固定布局解决显示问题。(此方案已在V3.6中被取代)
+版本 V3.6 更新内容:
+- [UI修正] 恢复可拖拽布局并调整比例。(此方案已在V3.7中被取代)
 
 作者：顾江江 (由AI优化和修复)
 """
@@ -37,7 +37,7 @@ except ImportError:
 
 # ======================== 全局配置 ========================
 CONFIG = {
-    "app_title": "日间手术随访表生成系统 V3.6",
+    "app_title": "日间手术随访表生成系统 V3.7",
     "day_surgery_max_days": 2,
     "column_mapping": {
         "name": "姓名", "department": "出院科室", "hospital_id": "住院号",
@@ -310,9 +310,8 @@ class App:
 
     def setup_window(self):
         self.root.title(CONFIG['app_title'])
-        self.root.geometry("1100x750") 
-        self.root.minsize(900, 600)
-        self.root.resizable(True, True)
+        self.root.geometry("685x530") 
+        self.root.resizable(False, False)
 
     def create_widgets(self):
         style = ttk.Style(self.root)
@@ -323,35 +322,30 @@ class App:
 
         # 底部信息栏
         bottom_frame = tk.Frame(self.root, bg=default_bg)
-        bottom_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=5)
+        bottom_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=2)
         tk.Label(bottom_frame, text=f"编程日期：{datetime.now().strftime('%Y年%m月%d日')}", font=self.font_normal, fg="#666666", bg=default_bg).pack(side=tk.LEFT)
         tk.Label(bottom_frame, text="作者：顾江江", font=self.font_normal, fg="#666666", bg=default_bg).pack(side=tk.RIGHT)
         
-        disclaimer_frame = tk.Frame(self.root, pady=5, bg=default_bg)
+        disclaimer_frame = tk.Frame(self.root, pady=2, bg=default_bg)
         disclaimer_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10)
         tk.Label(disclaimer_frame, text="本工具仅供骨科内部测试，请勿外传", font=self.font_disclaimer, fg="red", bg=default_bg).pack()
 
         # 顶部全局标题栏
         top_title_frame = tk.Frame(self.root, bg=default_bg)
-        top_title_frame.pack(side=tk.TOP, fill=tk.X, pady=(15, 5))
+        top_title_frame.pack(side=tk.TOP, fill=tk.X, pady=(10, 5))
         tk.Label(top_title_frame, text="丹阳市人民医院", font=self.font_subtitle, fg="#0066cc", bg=default_bg).pack()
         tk.Label(top_title_frame, text="日间手术随访表生成系统", font=self.font_title, bg=default_bg).pack()
 
-        # 使用PanedWindow实现可拖拽的左右布局
-        main_pane = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
-        main_pane.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 5))
+        # 主内容区
+        main_frame = ttk.Frame(self.root)
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 5))
 
-        # 左侧控制面板
-        left_panel = ttk.Frame(main_pane, padding=(10, 5, 10, 0))
-        main_pane.add(left_panel, weight=4) # V3.6: 调整权重
+        # --- 左侧控制面板 ---
+        left_panel = ttk.Frame(main_frame)
+        left_panel.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 5))
 
-        # 右侧日志面板
-        right_panel = ttk.Frame(main_pane, padding=(10, 5, 10, 0))
-        main_pane.add(right_panel, weight=3) # V3.6: 调整权重
-
-        # --- 将控件填充到左侧面板 ---
-        file_frame = ttk.LabelFrame(left_panel, text="步骤1: 选择文件和路径", padding="10")
-        file_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 5))
+        file_frame = ttk.LabelFrame(left_panel, text="步骤1: 选择文件和路径", padding=5)
+        file_frame.pack(fill=tk.X, pady=(0, 5))
         
         self.excel_path_var = tk.StringVar()
         self.template_path_var = tk.StringVar()
@@ -359,28 +353,31 @@ class App:
         
         self.create_file_selector(file_frame, "出院患者列表:", self.excel_path_var, self.select_excel_file)
         
-        surgery_frame = ttk.LabelFrame(file_frame, text="手术查询文件 (可多选)", padding="5")
-        surgery_frame.pack(fill=tk.X, expand=True, pady=(5,0))
+        surgery_frame = ttk.LabelFrame(file_frame, text="手术查询文件 (可多选)", padding=5)
+        surgery_frame.pack(fill=tk.X, expand=True, pady=3)
         
         self.surgery_listbox = tk.Listbox(surgery_frame, height=5, font=self.font_normal)
         self.surgery_listbox.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0,5))
         
         surgery_buttons_frame = ttk.Frame(surgery_frame)
         surgery_buttons_frame.pack(side=tk.LEFT, fill=tk.Y, anchor='n')
-        ttk.Button(surgery_buttons_frame, text="添加文件", command=self.select_surgery_query_files).pack(fill=tk.X, pady=2)
-        ttk.Button(surgery_buttons_frame, text="清空列表", command=self.clear_surgery_query_files).pack(fill=tk.X, pady=2)
+        ttk.Button(surgery_buttons_frame, text="添加文件", command=self.select_surgery_query_files, width=8).pack(fill=tk.X, pady=1)
+        ttk.Button(surgery_buttons_frame, text="清空列表", command=self.clear_surgery_query_files, width=8).pack(fill=tk.X, pady=1)
         
         self.create_file_selector(file_frame, "Word模板:", self.template_path_var, self.select_template_file)
         self.create_file_selector(file_frame, "输出文件夹:", self.output_dir_var, self.select_output_dir)
         
-        control_frame = ttk.LabelFrame(left_panel, text="步骤2: 开始生成", padding="10")
-        control_frame.pack(fill=tk.BOTH, expand=False, pady=(5,0)) # expand=False
+        control_frame = ttk.LabelFrame(left_panel, text="步骤2: 开始生成", padding=10)
+        control_frame.pack(fill=tk.X)
         style.configure("Accent.TButton", foreground="white", background="#0078D7", font=self.font_button)
         self.start_button = ttk.Button(control_frame, text="开始生成", command=self.start_generation, style="Accent.TButton")
         self.start_button.pack(pady=5, ipady=5, ipadx=20)
 
-        # --- 将控件填充到右侧面板 ---
-        progress_frame = ttk.LabelFrame(right_panel, text="处理进度与日志", padding="10")
+        # --- 右侧日志面板 ---
+        right_panel = ttk.Frame(main_frame)
+        right_panel.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+        
+        progress_frame = ttk.LabelFrame(right_panel, text="处理进度与日志", padding=10)
         progress_frame.pack(fill=tk.BOTH, expand=True)
         
         self.progress_bar = ttk.Progressbar(progress_frame, orient='horizontal', mode='determinate')
@@ -393,10 +390,10 @@ class App:
 
     def create_file_selector(self, parent, label_text, string_var, command):
         row_frame = ttk.Frame(parent)
-        row_frame.pack(fill=tk.X, expand=True, pady=2)
+        row_frame.pack(fill=tk.X, expand=True, pady=1)
         ttk.Label(row_frame, text=label_text, width=12, font=self.font_normal).pack(side=tk.LEFT)
         ttk.Entry(row_frame, textvariable=string_var, state='readonly', font=self.font_normal).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
-        ttk.Button(row_frame, text="浏览...", command=command).pack(side=tk.RIGHT)
+        ttk.Button(row_frame, text="浏览...", command=command, width=8).pack(side=tk.RIGHT)
 
     def select_excel_file(self):
         path = filedialog.askopenfilename(title="选择出院患者记录单", filetypes=[("Excel文件", "*.xlsx *.xls")])
