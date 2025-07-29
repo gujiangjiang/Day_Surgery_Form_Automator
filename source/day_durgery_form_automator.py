@@ -1,6 +1,13 @@
 # -*- coding: utf-8 -*-
 """
-日间手术随访表生成系统 (最终修复版)
+日间手术随访表生成系统 (功能增强版)
+
+版本 V2.6 更新内容:
+- 新增“手术查询文件”选择，用于匹配和补充缺失的“床号”信息。
+- 通过“住院号”和“姓名”双重条件，从手术查询文件中精确查找床号。
+- 如果患者的床号在两个文件中都无法找到，生成的Word文件名将自动标记为“（床号未知）”。
+- 优化了数据处理流程，提高了匹配效率。
+- 界面和日志输出同步更新，提示更清晰。
 
 功能：
 - 自动从Excel批量生成Word随访表
@@ -10,7 +17,6 @@
 - 可配置关键参数
 - 修正高DPI显示，自动适应系统缩放
 - 修正占位符替换逻辑，支持页眉替换
-- 增加床号缺失检测和提醒功能
 
 作者：顾江江 (由AI优化和修复)
 """
@@ -40,14 +46,14 @@ except ImportError:
 
 # ======================== 全局配置 ========================
 CONFIG = {
-    "app_title": "日间手术随访表生成系统 V2.5",
+    "app_title": "日间手术随访表生成系统 V2.6",
     "day_surgery_max_days": 2,
     "column_mapping": {
         "name": "姓名", "department": "出院科室", "hospital_id": "住院号",
         "discharge_date": "出院日期", "hospital_days": "住院天数", "gender": "性别",
         "age": "年龄", "bed_number": "床号", "admission_date": "入院日期",
         "surgery_date": "手术日期", "surgery_name": "手术名称", 
-        "diagnosis": "最后诊断1", # 关键修复：根据用户反馈修正列名
+        "diagnosis": "最后诊断1",
         "phone": "联系电话", "doctor": "经治医生"
     },
     "required_internal_keys": [
@@ -77,9 +83,13 @@ def get_day_after_discharge(discharge_date_str, days=7):
 
 # ======================== 核心逻辑类 ========================
 class DocumentGenerator:
-    def __init__(self, excel_path, template_path, output_dir, app_instance):
-        self.excel_path, self.template_path, self.output_dir, self.app = excel_path, template_path, output_dir, app_instance
-        self.bed_number_missing = False # 新增：用于标记床号是否缺失
+    def __init__(self, excel_path, surgery_query_path, template_path, output_dir, app_instance):
+        self.excel_path = excel_path
+        self.surgery_query_path = surgery_query_path # 新增：手术查询文件路径
+        self.template_path = template_path
+        self.output_dir = output_dir
+        self.app = app_instance
+        self.bed_number_lookup = {} # 新增：用于存储从手术查询文件读取的床号信息
 
     def log(self, message, level="info"):
         self.app.log_message(message, level)
@@ -87,8 +97,11 @@ class DocumentGenerator:
 
     def run(self):
         try:
-            self.log("开始读取Excel文件...")
-            df = self.read_and_prepare_excel()
+            # 新增步骤：首先读取手术查询文件，准备床号数据
+            self.prepare_bed_number_lookup()
+
+            self.log("开始读取出院患者列表Excel文件...")
+            df = self.read_and_prepare_patient_excel()
             if df is None: return
 
             self.log("分析出院日期分布...")
@@ -98,6 +111,9 @@ class DocumentGenerator:
                 return
             patient_year_month = f"{selected_month[:4]}年{selected_month[5:]}月"
             self.log(f"已确定主导月份为: {patient_year_month}")
+
+            # 新增步骤：合并床号信息
+            df = self.merge_bed_numbers(df)
 
             day_surgery_df = self.filter_day_surgery_patients(df)
             if day_surgery_df.empty:
@@ -120,12 +136,9 @@ class DocumentGenerator:
             self.log("="*30)
             self.log(f"处理完成！成功生成 {success_count} 份文档。")
             
-            # 新增：根据床号是否缺失，构建不同的成功消息
             final_message = f"成功生成 {success_count} 份随访表。\n" \
                           f"统一出院年月为: {patient_year_month}\n" \
                           f"文件保存在: {self.output_dir}"
-            if self.bed_number_missing:
-                final_message += "\n\n重要提醒：\n未在Excel中找到“床号”信息，请手动填写生成的文档！"
             
             messagebox.showinfo("完成", final_message)
 
@@ -135,7 +148,35 @@ class DocumentGenerator:
         finally:
             self.app.generation_finished()
 
-    def read_and_prepare_excel(self):
+    def prepare_bed_number_lookup(self):
+        """
+        新增方法：读取手术查询文件，并创建一个以 (住院号, 姓名) 为键，床号为值的字典。
+        """
+        self.log("正在读取手术查询文件以获取床号信息...")
+        try:
+            df_surgery = pd.read_excel(self.surgery_query_path, dtype=str)
+            df_surgery.columns = [str(col).strip() for col in df_surgery.columns]
+            
+            # 确保必需的列存在
+            required_cols = ["住院号", "姓名", "床号"]
+            if not all(col in df_surgery.columns for col in required_cols):
+                self.log(f"警告：手术查询文件中缺少必要的列（需要包含：{', '.join(required_cols)}）。将无法补充床号。", "warning")
+                return
+
+            # 去除关键信息为空的行
+            df_surgery.dropna(subset=required_cols, inplace=True)
+            
+            # 创建查找字典，后出现的数据会覆盖先出现的（通常是更新的数据）
+            for _, row in df_surgery.iterrows():
+                key = (str(row["住院号"]).strip(), str(row["姓名"]).strip())
+                self.bed_number_lookup[key] = str(row["床号"]).strip()
+
+            self.log(f"成功从手术查询文件加载了 {len(self.bed_number_lookup)} 条有效的床号记录。")
+        except Exception as e:
+            self.log(f"读取手术查询文件失败: {e}。将无法补充床号。", "error")
+            messagebox.showwarning("文件读取失败", f"无法读取手术查询文件：\n{e}\n程序将继续运行，但无法补充床号。")
+
+    def read_and_prepare_patient_excel(self):
         try:
             df_full = pd.read_excel(self.excel_path, sheet_name=0, header=None, dtype=str)
             required_excel_cols = {CONFIG['column_mapping'][key] for key in CONFIG['required_internal_keys']}
@@ -149,22 +190,47 @@ class DocumentGenerator:
                 header_row_num = simpledialog.askinteger("设置标题行", "自动检测标题行失败，请手动输入Excel中列标题所在行号（从1开始）：", minvalue=1, maxvalue=100)
                 if not header_row_num: return None
                 header_row_index = header_row_num - 1
-            df = pd.read_excel(self.excel_path, sheet_name=0, header=header_row_index)
+            df = pd.read_excel(self.excel_path, sheet_name=0, header=header_row_index, dtype=str)
             df.columns = [str(col).strip() for col in df.columns]
             if required_excel_cols - set(df.columns):
                 messagebox.showerror("列名缺失", f"Excel中缺少以下必要列: {', '.join(required_excel_cols - set(df.columns))}")
                 return None
             df.rename(columns={v: k for k, v in CONFIG['column_mapping'].items()}, inplace=True)
             
-            # 新增：检测床号列是否存在，并记录状态
+            # 如果主文件中没有床号列，则添加一个空列以便后续处理
             if 'bed_number' not in df.columns:
-                self.bed_number_missing = True
-                self.log("警告：Excel文件中未找到“床号”列。生成文档中的床号需手动填写。", "warning")
+                self.log("警告：主Excel文件中未找到“床号”列。将尝试从手术查询文件补充。", "warning")
+                df['bed_number'] = None
 
             return df
         except Exception as e:
-            messagebox.showerror("Excel读取失败", f"无法读取或解析Excel文件：\n{e}")
+            messagebox.showerror("Excel读取失败", f"无法读取或解析出院患者列表文件：\n{e}")
             return None
+
+    def merge_bed_numbers(self, df):
+        """
+        新增方法：将从手术查询文件获取的床号信息合并到主数据框中。
+        """
+        if not self.bed_number_lookup:
+            self.log("床号查找表为空，跳过合并步骤。", "warning")
+            df['final_bed_number'] = df['bed_number'] # 使用原有的床号
+            return df
+
+        self.log("正在为患者匹配床号...")
+        
+        def find_bed_number(row):
+            # 优先使用主文件中的床号，如果它有效的话
+            original_bed_number = row.get('bed_number')
+            if pd.notna(original_bed_number) and str(original_bed_number).strip():
+                return str(original_bed_number).strip()
+            
+            # 如果主文件床号无效，则从手术查询文件中查找
+            lookup_key = (str(row['hospital_id']).strip(), str(row['name']).strip())
+            return self.bed_number_lookup.get(lookup_key, None)
+
+        df['final_bed_number'] = df.apply(find_bed_number, axis=1)
+        self.log("床号匹配完成。")
+        return df
 
     def determine_dominant_month(self, df):
         df['discharge_month'] = pd.to_datetime(df['discharge_date'], errors='coerce').dt.strftime('%Y-%m')
@@ -187,21 +253,34 @@ class DocumentGenerator:
         replacements["{{患者出院年月}}"] = patient_year_month
         discharge_date_str = excel_date_to_str(getattr(row_data, 'discharge_date', ''))
         replacements["{{随访日期}}"] = get_day_after_discharge(discharge_date_str)
+        
+        # 更新：使用合并后的最终床号
+        final_bed_number = getattr(row_data, 'final_bed_number', None)
+        bed_number_is_unknown = not (pd.notna(final_bed_number) and str(final_bed_number).strip())
+
         for placeholder, key in CONFIG['template_placeholders'].items():
+            # 床号特殊处理
+            if key == "bed_number":
+                replacements[placeholder] = str(final_bed_number) if not bed_number_is_unknown else "（手动填写）"
+                continue
+
             raw_value = getattr(row_data, key, "")
             if "date" in key:
                 replacements[placeholder] = excel_date_to_str(raw_value)
-            elif key == "bed_number":
-                # 如果床号列本身就不存在，则强制为手动填写
-                if self.bed_number_missing:
-                    replacements[placeholder] = "（手动填写）"
-                else:
-                    replacements[placeholder] = str(raw_value) if pd.notna(raw_value) and str(raw_value).strip() else "（手动填写）"
             else:
                 replacements[placeholder] = str(raw_value) if pd.notna(raw_value) else ""
+
         patient_name = replacements.get("{{姓名}}", "未知姓名")
         department = replacements.get("{{科室}}", "未知科室")
-        filename = f"{patient_year_month}_{department}_日间手术随访_{replacements['{{随访日期}}']}_{patient_name}.docx"
+        
+        # 更新：根据床号是否未知来修改文件名
+        base_filename = f"{patient_year_month}_{department}_日间手术随访_{replacements['{{随访日期}}']}_{patient_name}"
+        if bed_number_is_unknown:
+            filename = f"{base_filename}（床号未知）.docx"
+            self.log(f"患者 {patient_name} 未找到床号，文件名已标记。", "warning")
+        else:
+            filename = f"{base_filename}.docx"
+
         filename = "".join(c for c in filename if c not in r'\/:*?"<>|')
         doc = Document(self.template_path)
         self.perform_replacements(doc, replacements)
@@ -209,30 +288,27 @@ class DocumentGenerator:
         self.log(f"已生成: {filename}")
 
     def perform_replacements(self, doc, replacements):
+        # 此部分逻辑不变
         for p in doc.paragraphs:
             for old, new in replacements.items():
-                if old in p.text:
-                    p.text = p.text.replace(old, new)
+                if old in p.text: p.text = p.text.replace(old, new)
         for table in doc.tables:
             for row in table.rows:
                 for cell in row.cells:
                     for p in cell.paragraphs:
                         for old, new in replacements.items():
-                            if old in p.text:
-                                p.text = p.text.replace(old, new)
+                            if old in p.text: p.text = p.text.replace(old, new)
         for section in doc.sections:
             header = section.header
             for p in header.paragraphs:
                 for old, new in replacements.items():
-                    if old in p.text:
-                        p.text = p.text.replace(old, new)
+                    if old in p.text: p.text = p.text.replace(old, new)
             for table in header.tables:
                 for row in table.rows:
                     for cell in row.cells:
                         for p in cell.paragraphs:
                             for old, new in replacements.items():
-                                if old in p.text:
-                                    p.text = p.text.replace(old, new)
+                                if old in p.text: p.text = p.text.replace(old, new)
 
 # ======================== GUI界面类 ========================
 class App:
@@ -257,16 +333,11 @@ class App:
 
     def create_widgets(self):
         style = ttk.Style(self.root)
-        if "clam" in style.theme_names():
-            style.theme_use("clam")
+        if "clam" in style.theme_names(): style.theme_use("clam")
         default_bg = style.lookup('TFrame', 'background')
         self.root.configure(bg=default_bg)
 
-        # 配置日志颜色
-        self.log_text_tags = {
-            "warning": {"foreground": "orange"},
-            "error": {"foreground": "red"}
-        }
+        self.log_text_tags = {"warning": {"foreground": "orange"}, "error": {"foreground": "red"}}
 
         bottom_frame = tk.Frame(self.root, bg=default_bg)
         bottom_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=5)
@@ -287,8 +358,16 @@ class App:
 
         file_frame = ttk.LabelFrame(content_frame, text="步骤1: 选择文件和路径", padding="10")
         file_frame.pack(fill=tk.X, expand=True, pady=5)
-        self.excel_path_var, self.template_path_var, self.output_dir_var = tk.StringVar(), tk.StringVar(), tk.StringVar()
-        self.create_file_selector(file_frame, "Excel源文件:", self.excel_path_var, self.select_excel_file)
+        
+        # 更新：为所有路径创建StringVar
+        self.excel_path_var = tk.StringVar()
+        self.surgery_query_path_var = tk.StringVar() # 新增
+        self.template_path_var = tk.StringVar()
+        self.output_dir_var = tk.StringVar()
+        
+        self.create_file_selector(file_frame, "出院患者列表:", self.excel_path_var, self.select_excel_file)
+        # 新增：手术查询文件选择器
+        self.create_file_selector(file_frame, "手术查询文件:", self.surgery_query_path_var, self.select_surgery_query_file)
         self.create_file_selector(file_frame, "Word模板:", self.template_path_var, self.select_template_file)
         self.create_file_selector(file_frame, "输出文件夹:", self.output_dir_var, self.select_output_dir)
 
@@ -304,7 +383,6 @@ class App:
         self.progress_bar.pack(fill=tk.X, expand=True, pady=5)
         self.log_text = scrolledtext.ScrolledText(progress_frame, height=10, state='disabled', font=self.font_normal)
         self.log_text.pack(fill=tk.BOTH, expand=True)
-        # 为不同级别的日志设置tag
         for tag, config in self.log_text_tags.items():
             self.log_text.tag_config(tag, **config)
 
@@ -319,6 +397,11 @@ class App:
         path = filedialog.askopenfilename(title="选择出院患者记录单", filetypes=[("Excel文件", "*.xlsx *.xls")])
         if path: self.excel_path_var.set(path)
 
+    def select_surgery_query_file(self):
+        """新增：选择手术查询文件的方法"""
+        path = filedialog.askopenfilename(title="选择手术查询文件（用于匹配床号）", filetypes=[("Excel文件", "*.xlsx *.xls")])
+        if path: self.surgery_query_path_var.set(path)
+
     def select_template_file(self):
         path = filedialog.askopenfilename(title="选择随访表模板", filetypes=[("Word模板", "*.docx")])
         if path: self.template_path_var.set(path)
@@ -330,7 +413,6 @@ class App:
     def log_message(self, msg, level="info"):
         def append():
             self.log_text.config(state='normal')
-            # 根据日志级别使用不同的tag
             tag = self.log_text_tags.get(level)
             if tag:
                 self.log_text.insert(tk.END, f"{datetime.now().strftime('%H:%M:%S')} - {msg}\n", level)
@@ -344,13 +426,22 @@ class App:
         self.root.after(0, lambda: self.progress_bar.config(value=value))
 
     def start_generation(self):
-        if not all([self.excel_path_var.get(), self.template_path_var.get(), self.output_dir_var.get()]):
-            messagebox.showwarning("信息不全", "请先选择好Excel源文件、Word模板和输出文件夹。")
+        # 更新：检查所有必需文件是否都已选择
+        if not all([self.excel_path_var.get(), self.surgery_query_path_var.get(), self.template_path_var.get(), self.output_dir_var.get()]):
+            messagebox.showwarning("信息不全", "请先选择好全部4个文件/路径：\n1. 出院患者列表\n2. 手术查询文件\n3. Word模板\n4. 输出文件夹")
             return
         self.start_button.config(state='disabled')
         self.progress_bar['value'] = 0
         self.log_text.config(state='normal'); self.log_text.delete('1.0', tk.END); self.log_text.config(state='disabled')
-        generator = DocumentGenerator(self.excel_path_var.get(), self.template_path_var.get(), self.output_dir_var.get(), self)
+        
+        # 更新：将手术查询文件路径传递给生成器
+        generator = DocumentGenerator(
+            excel_path=self.excel_path_var.get(), 
+            surgery_query_path=self.surgery_query_path_var.get(),
+            template_path=self.template_path_var.get(), 
+            output_dir=self.output_dir_var.get(), 
+            app_instance=self
+        )
         threading.Thread(target=generator.run, daemon=True).start()
 
     def generation_finished(self):
@@ -367,3 +458,4 @@ if __name__ == "__main__":
     root = tk.Tk()
     app = App(root)
     root.mainloop()
+
