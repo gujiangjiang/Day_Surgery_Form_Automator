@@ -2,6 +2,9 @@
 """
 日间手术随访表生成系统 (功能增强版)
 
+版本 V5.0 (最终优化版) 更新内容:
+- [UI优化] 程序启动时窗口会自动居中显示，提升用户体验。
+
 版本 V4.9 更新内容:
 - [逻辑修正] 优化了“床号匹配失败”的提醒机制，现在只提醒符合日间手术条件的患者，过滤了无关人员的信息，提醒更精准。
 
@@ -45,7 +48,7 @@ except ImportError:
 
 # ======================== 全局配置 ========================
 CONFIG = {
-    "app_title": "日间手术随访表生成系统 V4.9",
+    "app_title": "日间手术随访表生成系统 V5.0",
     "day_surgery_max_days": 2,
     "follow_up_days": 7,  # 随访发生于出院后的天数
     "unknown_bed_placeholder": "（手动填写）", # Word内容中的床号未知占位符
@@ -344,12 +347,22 @@ class App:
         self.font_disclaimer = ("微软雅黑", 10)
 
     def setup_window(self):
-        """根据缩放比例设置窗口大小"""
+        """根据缩放比例设置窗口大小并居中"""
         self.root.title(CONFIG['app_title'])
         s = self.scaling_factor
         width = int(685 * s)
         height = int(535 * s)
-        self.root.geometry(f"{width}x{height}") 
+        
+        # 获取屏幕尺寸
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        
+        # 计算居中位置
+        pos_x = (screen_width // 2) - (width // 2)
+        pos_y = (screen_height // 2) - (height // 2)
+        
+        # 设置窗口大小和位置
+        self.root.geometry(f"{width}x{height}+{pos_x}+{pos_y}") 
         self.root.resizable(False, False)
 
     def create_widgets(self):
