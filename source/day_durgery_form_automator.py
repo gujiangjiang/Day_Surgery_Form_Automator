@@ -2,13 +2,14 @@
 """
 日间手术随访表生成系统 (功能增强版)
 
-版本 V4.6 更新内容:
-- [UI终版] 移除了对字体大小的DPI缩放，恢复为固定大小，解决了在高分屏上字体过大的问题。
-- [UI终版] 保留对窗口和布局尺寸的DPI缩放，确保在高分屏上整体布局协调。
+版本 V4.7 更新内容:
+- [功能优化] 将“患者出院年月”从统一月份改为根据每位患者的实际出院日期生成，文件名同步更新。
+- [功能优化] 移除了选择主导月份的弹窗，流程更自动化。
 - [UI终版] 这是结合了所有用户反馈的最终稳定版本。
 
-版本 V4.5 更新内容:
-- [UI修正] 新增动态DPI检测与缩放功能。(此方案在V4.6中被优化)
+版本 V4.6 更新内容:
+- [UI修正] 移除了对字体大小的DPI缩放，恢复为固定大小，解决了在高分屏上字体过大的问题。
+- [UI修正] 保留对窗口和布局尺寸的DPI缩放，确保在高分屏上整体布局协调。
 
 作者：顾江江 (由AI优化和修复)
 """
@@ -37,7 +38,7 @@ except ImportError:
 
 # ======================== 全局配置 ========================
 CONFIG = {
-    "app_title": "日间手术随访表生成系统 V4.6",
+    "app_title": "日间手术随访表生成系统 V4.7",
     "day_surgery_max_days": 2,
     "column_mapping": {
         "name": "姓名", "department": "出院科室", "hospital_id": "住院号",
@@ -97,13 +98,9 @@ class DocumentGenerator:
             self.log("开始读取出院患者列表Excel文件...")
             df = self.read_and_prepare_patient_excel()
             if df is None: return
-            self.log("分析出院日期分布...")
-            selected_month = self.determine_dominant_month(df)
-            if not selected_month:
-                self.log("用户取消或无有效数据，操作中止。")
-                return
-            patient_year_month = f"{selected_month[:4]}年{selected_month[5:]}月"
-            self.log(f"已确定主导月份为: {patient_year_month}")
+
+            # V4.7: 移除选择主导月份的逻辑
+            
             df = self.merge_bed_numbers(df)
             day_surgery_df = self.filter_day_surgery_patients(df)
             if day_surgery_df.empty:
@@ -116,15 +113,17 @@ class DocumentGenerator:
             success_count = 0
             for index, row in enumerate(day_surgery_df.itertuples()):
                 try:
-                    self.generate_single_document(row, patient_year_month)
+                    # V4.7: 不再传递 patient_year_month
+                    self.generate_single_document(row)
                     success_count += 1
                 except Exception as e:
                     self.log(f"处理行 {getattr(row, 'Index', 'N/A')} 时发生错误: {e}", "error")
                 self.update_progress((index + 1) / total_rows * 100)
             self.log("="*30)
             self.log(f"处理完成！成功生成 {success_count} 份文档。")
+            
+            # V4.7: 更新完成提示信息
             final_message = f"成功生成 {success_count} 份随访表。\n" \
-                          f"统一出院年月为: {patient_year_month}\n" \
                           f"文件保存在: {self.output_dir}"
             messagebox.showinfo("完成", final_message)
         except Exception as e:
@@ -223,27 +222,27 @@ class DocumentGenerator:
         self.log("床号匹配完成。")
         return df
 
-    def determine_dominant_month(self, df):
-        df['discharge_month'] = pd.to_datetime(df['discharge_date'], errors='coerce').dt.strftime('%Y-%m')
-        month_counts = df['discharge_month'].value_counts().to_dict()
-        month_counts.pop(None, None)
-        if not month_counts:
-            messagebox.showerror("无有效日期", f"在“{CONFIG['column_mapping']['discharge_date']}”列中未找到任何有效的日期。")
-            return None
-        if len(month_counts) == 1: return list(month_counts.keys())[0]
-        options = [f"{month} ({count}例)" for month, count in month_counts.items()]
-        choice = simpledialog.askstring("选择主导月份", "发现多个出院月份，请选择一个作为文件命名和标题的主导月份：\n\n" + "\n".join(options))
-        return choice.split(" ")[0] if choice else None
-
     def filter_day_surgery_patients(self, df):
         df['hospital_days'] = pd.to_numeric(df['hospital_days'], errors='coerce')
         return df[df['hospital_days'] <= CONFIG['day_surgery_max_days']].copy()
 
-    def generate_single_document(self, row_data, patient_year_month):
+    def generate_single_document(self, row_data):
         replacements = {}
-        replacements["{{患者出院年月}}"] = patient_year_month
+        
+        # V4.7: 根据当前行数据生成年月
         discharge_date_str = excel_date_to_str(getattr(row_data, 'discharge_date', ''))
+        if discharge_date_str:
+            try:
+                dt_discharge = datetime.strptime(discharge_date_str, "%Y-%m-%d")
+                patient_year_month = dt_discharge.strftime("%Y年%m月")
+            except ValueError:
+                patient_year_month = "未知年月"
+        else:
+            patient_year_month = "未知年月"
+
+        replacements["{{患者出院年月}}"] = patient_year_month
         replacements["{{随访日期}}"] = get_day_after_discharge(discharge_date_str)
+        
         final_bed_number = getattr(row_data, 'final_bed_number', None)
         bed_number_is_unknown = not (pd.notna(final_bed_number) and str(final_bed_number).strip())
         for placeholder, key in CONFIG['template_placeholders'].items():
@@ -257,6 +256,8 @@ class DocumentGenerator:
                 replacements[placeholder] = str(raw_value) if pd.notna(raw_value) else ""
         patient_name = replacements.get("{{姓名}}", "未知姓名")
         department = replacements.get("{{科室}}", "未知科室")
+        
+        # V4.7: 使用新的 patient_year_month 构建文件名
         base_filename = f"{patient_year_month}_{department}_日间手术随访_{replacements['{{随访日期}}']}_{patient_name}"
         if bed_number_is_unknown:
             filename = f"{base_filename}（床号未知）.docx"
@@ -326,7 +327,7 @@ class App:
         self.root.title(CONFIG['app_title'])
         s = self.scaling_factor
         width = int(685 * s)
-        height = int(530 * s)
+        height = int(535 * s)
         self.root.geometry(f"{width}x{height}") 
         self.root.resizable(False, False)
 
