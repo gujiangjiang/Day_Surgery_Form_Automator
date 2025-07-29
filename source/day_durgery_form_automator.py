@@ -2,17 +2,14 @@
 """
 日间手术随访表生成系统 (功能增强版)
 
-版本 V5.0 (最终优化版) 更新内容:
+版本 V5.1 (最终优化版) 更新内容:
+- [启动画面修正] 修复了使用Nuitka打包后，启动画面在某些情况下无法自动关闭的问题。通过after_idle确保关闭时机正确。
+
+版本 V5.0 更新内容:
 - [UI优化] 程序启动时窗口会自动居中显示，提升用户体验。
 
 版本 V4.9 更新内容:
 - [逻辑修正] 优化了“床号匹配失败”的提醒机制，现在只提醒符合日间手术条件的患者，过滤了无关人员的信息，提醒更精准。
-
-版本 V4.8 更新内容:
-- [功能新增] 集成Nuitka启动画面关闭逻辑，打包后可实现启动画面的自动关闭。
-- [代码重构] 优化Word文档内容替换逻辑，消除重复代码，提高可维护性。
-- [体验增强] 新增“床号匹配失败”的最终汇总弹窗提醒，方便用户快速定位问题数据。
-- [配置优化] 将随访天数、未知床号占位符等固定参数移入全局CONFIG，便于统一管理。
 
 作者：顾江江 (由AI优化和修复)
 """
@@ -48,7 +45,7 @@ except ImportError:
 
 # ======================== 全局配置 ========================
 CONFIG = {
-    "app_title": "日间手术随访表生成系统 V5.0",
+    "app_title": "日间手术随访表生成系统 V5.1",
     "day_surgery_max_days": 2,
     "follow_up_days": 7,  # 随访发生于出院后的天数
     "unknown_bed_placeholder": "（手动填写）", # Word内容中的床号未知占位符
@@ -121,7 +118,6 @@ class DocumentGenerator:
                 messagebox.showerror("无数据", msg)
                 return
 
-            # V4.9: 从符合条件的日间手术患者中，筛选出床号匹配失败的患者
             unmatched_day_surgery_patients = []
             for row in day_surgery_df.itertuples():
                 final_bed_number = getattr(row, 'final_bed_number', None)
@@ -145,7 +141,6 @@ class DocumentGenerator:
             self.log("="*30)
             self.log(f"处理完成！成功生成 {success_count} 份文档。")
             
-            # V4.9: 检查并报告床号匹配失败的汇总信息 (仅限符合条件的患者)
             if unmatched_day_surgery_patients:
                 summary_message = f"注意：有 {len(unmatched_day_surgery_patients)} 位符合条件的日间手术患者未能匹配到床号：\n\n" + "\n".join(unmatched_day_surgery_patients)
                 self.log("="*30, "warning")
@@ -547,9 +542,10 @@ if __name__ == "__main__":
     root = tk.Tk()
     app = App(root)
 
-    # 在显示主窗口前，关闭启动画面
+    # V5.1修正：使用 after_idle 确保在主循环开始处理事件后，再关闭启动画面
+    # 这是最稳妥的方式，可以避免时序问题
     if splash_active:
-        nuitka_splashscreen_python.close()
+        root.after_idle(nuitka_splashscreen_python.close)
         
     root.mainloop()
 

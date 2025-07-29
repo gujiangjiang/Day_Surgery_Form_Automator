@@ -76,7 +76,7 @@ pip install pyinstaller
 
 **2. 执行打包命令**
 ```bash
-pyinstaller --onefile --windowed --icon="app.ico" --name="Day Surgery Form Automator" day_durgery_form_automator.py
+pyinstaller --onefile --windowed --icon="app.ico" --name="day_durgery_form_automator" day_durgery_form_automator.py
 ```
 * `--onefile`: 将所有依赖和脚本打包成一个独立的 `.exe` 文件。
 * `--windowed`: 运行程序时不显示黑色的命令行窗口 (适用于图形界面程序)。
@@ -113,7 +113,7 @@ python -m nuitka `
   --windows-icon-from-ico=app.ico `
   --mingw64 `
   --output-dir=build `
-  --output-filename="Day Surgery Form Automator.exe" `
+  --output-filename="day_durgery_form_automator.exe" `
   --file-version=5.0.1.0 `
   --product-version=5.0 `
   --company-name="Danyang People's Hospital" `
@@ -136,7 +136,7 @@ python -m nuitka ^
   --windows-icon-from-ico=app.ico ^
   --mingw64 ^
   --output-dir=build ^
-  --output-filename="Day Surgery Form Automator.exe" ^
+  --output-filename="day_durgery_form_automator.exe" ^
   --file-version=5.0.1.0 ^
   --product-version=5.0 ^
   --company-name="Danyang People's Hospital" ^
