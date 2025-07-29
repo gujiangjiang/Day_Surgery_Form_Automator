@@ -2,16 +2,14 @@
 """
 日间手术随访表生成系统 (功能增强版)
 
+版本 V4.9 更新内容:
+- [逻辑修正] 优化了“床号匹配失败”的提醒机制，现在只提醒符合日间手术条件的患者，过滤了无关人员的信息，提醒更精准。
+
 版本 V4.8 更新内容:
 - [功能新增] 集成Nuitka启动画面关闭逻辑，打包后可实现启动画面的自动关闭。
 - [代码重构] 优化Word文档内容替换逻辑，消除重复代码，提高可维护性。
 - [体验增强] 新增“床号匹配失败”的最终汇总弹窗提醒，方便用户快速定位问题数据。
 - [配置优化] 将随访天数、未知床号占位符等固定参数移入全局CONFIG，便于统一管理。
-
-版本 V4.7 更新内容:
-- [功能优化] 将“患者出院年月”从统一月份改为根据每位患者的实际出院日期生成，文件名同步更新。
-- [功能优化] 移除了选择主导月份的弹窗，流程更自动化。
-- [UI终版] 这是结合了所有用户反馈的最终稳定版本。
 
 作者：顾江江 (由AI优化和修复)
 """
@@ -47,7 +45,7 @@ except ImportError:
 
 # ======================== 全局配置 ========================
 CONFIG = {
-    "app_title": "日间手术随访表生成系统 V4.8",
+    "app_title": "日间手术随访表生成系统 V4.9",
     "day_surgery_max_days": 2,
     "follow_up_days": 7,  # 随访发生于出院后的天数
     "unknown_bed_placeholder": "（手动填写）", # Word内容中的床号未知占位符
@@ -99,7 +97,6 @@ class DocumentGenerator:
         self.output_dir = output_dir
         self.app = app_instance
         self.bed_number_lookup = {}
-        self.unmatched_patients = [] # 用于存储床号匹配失败的患者信息
 
     def log(self, message, level="info"):
         self.app.log_message(message, level)
@@ -114,11 +111,23 @@ class DocumentGenerator:
             
             df = self.merge_bed_numbers(df)
             day_surgery_df = self.filter_day_surgery_patients(df)
+            
             if day_surgery_df.empty:
                 msg = f"错误：未找到住院天数 <= {CONFIG['day_surgery_max_days']} 天的记录。"
                 self.log(msg, "error")
                 messagebox.showerror("无数据", msg)
                 return
+
+            # V4.9: 从符合条件的日间手术患者中，筛选出床号匹配失败的患者
+            unmatched_day_surgery_patients = []
+            for row in day_surgery_df.itertuples():
+                final_bed_number = getattr(row, 'final_bed_number', None)
+                is_unknown = not (pd.notna(final_bed_number) and str(final_bed_number).strip())
+                if is_unknown:
+                    name = getattr(row, 'name', '未知姓名')
+                    hospital_id = getattr(row, 'hospital_id', '未知住院号')
+                    unmatched_day_surgery_patients.append(f"{name} (住院号: {hospital_id})")
+
             total_rows = len(day_surgery_df)
             self.log(f"共找到 {total_rows} 条符合条件的记录，开始生成文档...")
             success_count = 0
@@ -133,12 +142,12 @@ class DocumentGenerator:
             self.log("="*30)
             self.log(f"处理完成！成功生成 {success_count} 份文档。")
             
-            # V4.8: 检查并报告床号匹配失败的汇总信息
-            if self.unmatched_patients:
-                summary_message = f"注意：有 {len(self.unmatched_patients)} 位患者未能匹配到床号，已在文件名和内容中标注：\n\n" + "\n".join(self.unmatched_patients)
+            # V4.9: 检查并报告床号匹配失败的汇总信息 (仅限符合条件的患者)
+            if unmatched_day_surgery_patients:
+                summary_message = f"注意：有 {len(unmatched_day_surgery_patients)} 位符合条件的日间手术患者未能匹配到床号：\n\n" + "\n".join(unmatched_day_surgery_patients)
                 self.log("="*30, "warning")
-                self.log("以下患者未能匹配到床号:", "warning")
-                for patient_info in self.unmatched_patients:
+                self.log("以下日间手术患者未能匹配到床号:", "warning")
+                for patient_info in unmatched_day_surgery_patients:
                     self.log(f"- {patient_info}", "warning")
                 messagebox.showwarning("匹配提醒", summary_message)
             
@@ -236,7 +245,6 @@ class DocumentGenerator:
                 self.log(f"为患者 '{name_raw}' (住院号: {h_id_raw}) 成功匹配到床号: {found_bed_number}", "info")
             else:
                 self.log(f"患者 '{name_raw}' (住院号: {h_id_raw}) 匹配失败。程序尝试使用的标准化键为: ('{h_id}', '{name}')", "warning")
-                self.unmatched_patients.append(f"{name_raw} (住院号: {h_id_raw})")
             return found_bed_number
         df['final_bed_number'] = df.apply(find_bed_number, axis=1)
         self.log("床号匹配完成。")
