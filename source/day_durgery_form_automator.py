@@ -2,12 +2,12 @@
 """
 日间手术随访表生成系统 (功能增强版)
 
-版本 V3.1 更新内容:
-- [UI优化] 调整程序主窗口为左右布局，左侧为控制面板，右侧为日志和进度显示，更美观实用。
+版本 V3.2 更新内容:
+- [UI重构] 使用PanedWindow控件重写主界面，实现可拖拽调整的左右分栏布局，彻底解决控件遮挡问题。
+- [布局优化] 根据用户反馈，启动时默认增大左侧控制面板的宽度，优化视觉和操作体验。
 
-版本 V3.0 更新内容:
-- [功能增强] 支持同时选择多个“手术查询文件”，程序会自动合并所有文件中的床号信息进行匹配。
-- [界面更新] 使用列表框来管理多个手术查询文件，支持添加和清空操作。
+版本 V3.1 更新内容:
+- [UI优化] 调整程序主窗口为左右布局，左侧为控制面板，右侧为日志和进度显示。
 
 作者：顾江江 (由AI优化和修复)
 """
@@ -36,7 +36,7 @@ except ImportError:
 
 # ======================== 全局配置 ========================
 CONFIG = {
-    "app_title": "日间手术随访表生成系统 V3.1",
+    "app_title": "日间手术随访表生成系统 V3.2",
     "day_surgery_max_days": 2,
     "column_mapping": {
         "name": "姓名", "department": "出院科室", "hospital_id": "住院号",
@@ -308,9 +308,8 @@ class App:
 
     def setup_window(self):
         self.root.title(CONFIG['app_title'])
-        # V3.1: 调整窗口大小以适应新布局
         self.root.geometry("1200x800")
-        self.root.minsize(1000, 600) # 设置最小尺寸
+        self.root.minsize(1000, 600)
         self.root.resizable(True, True)
 
     def create_widgets(self):
@@ -320,9 +319,8 @@ class App:
         self.root.configure(bg=default_bg)
         self.log_text_tags = {"warning": {"foreground": "orange"}, "error": {"foreground": "red"}}
 
-        # --- V3.1: 布局调整 ---
+        # --- V3.2: 布局重构 ---
 
-        # 将底部信息栏先打包，使其固定在底部
         bottom_frame = tk.Frame(self.root, bg=default_bg)
         bottom_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=5)
         tk.Label(bottom_frame, text=f"编程日期：{datetime.now().strftime('%Y年%m月%d日')}", font=self.font_normal, fg="#666666", bg=default_bg).pack(side=tk.LEFT)
@@ -332,18 +330,17 @@ class App:
         disclaimer_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10)
         tk.Label(disclaimer_frame, text="本工具仅供骨科内部测试，请勿外传", font=self.font_disclaimer, fg="red", bg=default_bg).pack()
 
-        # 创建一个主框架来容纳左右两个面板
-        main_frame = ttk.Frame(self.root)
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        # 使用PanedWindow实现可拖拽的左右布局
+        main_pane = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
+        main_pane.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
 
         # 左侧控制面板
-        left_panel = ttk.Frame(main_frame, width=480)
-        left_panel.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
-        left_panel.pack_propagate(False) # 防止面板收缩
+        left_panel = ttk.Frame(main_pane, padding="10")
+        main_pane.add(left_panel, weight=2) # 左侧权重更大，占据更多初始空间
 
         # 右侧日志面板
-        right_panel = ttk.Frame(main_frame)
-        right_panel.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+        right_panel = ttk.Frame(main_pane, padding="10")
+        main_pane.add(right_panel, weight=1) # 右侧权重较小
 
         # --- 将控件填充到左侧面板 ---
         title_frame = tk.Frame(left_panel, bg=default_bg)
