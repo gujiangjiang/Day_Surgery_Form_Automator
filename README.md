@@ -6,7 +6,7 @@
 
 这是一个功能强大且用户友好的医疗文档自动化工具，专为简化“日间手术随访表”的生成流程而设计。作为原始版本的重大升级，此版本在**代码健壮性、用户体验、可维护性和界面美观度**上都进行了全面的优化和重构。
 
-![截图](./docs/images/screenshots/screenshot_v2.9.png)
+![截图](./docs/images/screenshots/screenshot.png)
 *<p align="center">软件截图</p>*
 
 ---

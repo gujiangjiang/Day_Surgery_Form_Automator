@@ -2,13 +2,13 @@
 """
 日间手术随访表生成系统 (功能增强版)
 
-版本 V2.9 更新内容:
-- [根本性修正] 重写了读取“手术查询文件”的逻辑，增加了智能标题行检测功能。现在程序可以自动找到正确的列标题，解决了因文件顶部存在大标题而导致无法识别列的问题。
-- 统一了两个Excel文件的读取和预处理逻辑，增强了程序的健壮性。
+版本 V3.0 更新内容:
+- [功能增强] 支持同时选择多个“手术查询文件”，程序会自动合并所有文件中的床号信息进行匹配。
+- [界面更新] 使用列表框来管理多个手术查询文件，支持添加和清空操作。
+- 优化了日志输出，清晰展示多文件的读取过程。
 
-版本 V2.8 更新内容:
-- [修正] 引入了更强大的数据标准化函数，可以处理包括“不换行空格”(\xa0)在内的多种隐藏字符。
-- [诊断增强] 增加了更详细的日志记录。
+版本 V2.9 更新内容:
+- [根本性修正] 重写了读取“手术查询文件”的逻辑，增加了智能标题行检测功能。
 
 作者：顾江江 (由AI优化和修复)
 """
@@ -37,7 +37,7 @@ except ImportError:
 
 # ======================== 全局配置 ========================
 CONFIG = {
-    "app_title": "日间手术随访表生成系统 V2.9",
+    "app_title": "日间手术随访表生成系统 V3.0",
     "day_surgery_max_days": 2,
     "column_mapping": {
         "name": "姓名", "department": "出院科室", "hospital_id": "住院号",
@@ -79,9 +79,9 @@ def normalize_text(text):
 
 # ======================== 核心逻辑类 ========================
 class DocumentGenerator:
-    def __init__(self, excel_path, surgery_query_path, template_path, output_dir, app_instance):
+    def __init__(self, excel_path, surgery_query_paths, template_path, output_dir, app_instance):
         self.excel_path = excel_path
-        self.surgery_query_path = surgery_query_path
+        self.surgery_query_paths = surgery_query_paths # V3.0: 接收一个路径列表
         self.template_path = template_path
         self.output_dir = output_dir
         self.app = app_instance
@@ -134,44 +134,47 @@ class DocumentGenerator:
             self.app.generation_finished()
 
     def prepare_bed_number_lookup(self):
-        self.log("正在读取手术查询文件以获取床号信息...")
-        try:
-            # [V2.9 核心修正] 引入智能标题行检测逻辑
-            required_cols = ["住院号", "姓名", "床号"]
-            df_surgery_full = pd.read_excel(self.surgery_query_path, header=None, dtype=str)
-            
-            header_row_index = -1
-            for i, row in df_surgery_full.iterrows():
-                # 清理行内容，以便进行比对
-                row_values = {str(v).strip() for v in row.dropna()}
-                if set(required_cols).issubset(row_values):
-                    header_row_index = i
-                    self.log(f"在手术查询文件中自动检测到标题行位于第 {i+1} 行。")
-                    break
-            
-            if header_row_index == -1:
-                self.log(f"警告：在手术查询文件中未能自动找到包含所有必需列({', '.join(required_cols)})的标题行。将无法补充床号。", "warning")
-                messagebox.showwarning("列缺失", f"手术查询文件中缺少必要的列（{', '.join(required_cols)}）或无法自动定位标题行。")
-                return
+        self.log("开始处理手术查询文件...")
+        if not self.surgery_query_paths:
+            self.log("未选择任何手术查询文件，跳过床号补充步骤。", "warning")
+            return
 
-            # 使用检测到的标题行重新读取数据
-            df_surgery = pd.read_excel(self.surgery_query_path, header=header_row_index, dtype=str)
-            df_surgery.columns = [str(col).strip() for col in df_surgery.columns]
-            
-            df_surgery.dropna(subset=required_cols, inplace=True)
-            for _, row in df_surgery.iterrows():
-                name = normalize_text(row.get("姓名"))
-                h_id_text = normalize_text(row.get("住院号"))
-                h_id = h_id_text.lstrip('0') if h_id_text != '0' else '0'
-                bed_number = normalize_text(row.get("床号"))
+        # V3.0: 遍历所有选择的文件
+        for file_path in self.surgery_query_paths:
+            self.log(f"正在读取文件: {os.path.basename(file_path)}", "info")
+            try:
+                required_cols = ["住院号", "姓名", "床号"]
+                df_surgery_full = pd.read_excel(file_path, header=None, dtype=str)
                 
-                if h_id and name:
-                    key = (h_id, name)
-                    self.bed_number_lookup[key] = bed_number
-            self.log(f"成功从手术查询文件加载了 {len(self.bed_number_lookup)} 条有效的床号记录。")
-        except Exception as e:
-            self.log(f"读取手术查询文件失败: {e}。将无法补充床号。", "error")
-            messagebox.showwarning("文件读取失败", f"无法读取手术查询文件：\n{e}\n程序将继续运行，但无法补充床号。")
+                header_row_index = -1
+                for i, row in df_surgery_full.iterrows():
+                    row_values = {str(v).strip() for v in row.dropna()}
+                    if set(required_cols).issubset(row_values):
+                        header_row_index = i
+                        self.log(f"在文件 '{os.path.basename(file_path)}' 中自动检测到标题行位于第 {i+1} 行。")
+                        break
+                
+                if header_row_index == -1:
+                    self.log(f"警告：在文件 '{os.path.basename(file_path)}' 中未能找到必需列({', '.join(required_cols)})。已跳过此文件。", "warning")
+                    continue
+
+                df_surgery = pd.read_excel(file_path, header=header_row_index, dtype=str)
+                df_surgery.columns = [str(col).strip() for col in df_surgery.columns]
+                
+                df_surgery.dropna(subset=required_cols, inplace=True)
+                for _, row in df_surgery.iterrows():
+                    name = normalize_text(row.get("姓名"))
+                    h_id_text = normalize_text(row.get("住院号"))
+                    h_id = h_id_text.lstrip('0') if h_id_text != '0' else '0'
+                    bed_number = normalize_text(row.get("床号"))
+                    
+                    if h_id and name:
+                        key = (h_id, name)
+                        self.bed_number_lookup[key] = bed_number
+            except Exception as e:
+                self.log(f"读取文件 '{os.path.basename(file_path)}' 时出错: {e}。已跳过此文件。", "error")
+        
+        self.log(f"所有手术查询文件处理完毕，共加载了 {len(self.bed_number_lookup)} 条有效的床号记录。")
 
     def read_and_prepare_patient_excel(self):
         try:
@@ -212,22 +215,17 @@ class DocumentGenerator:
             original_bed_number = normalize_text(row.get('bed_number'))
             if original_bed_number:
                 return original_bed_number
-            
             name_raw = row.get('name', "")
             h_id_raw = row.get('hospital_id', "")
-            
             name = normalize_text(name_raw)
             h_id_text = normalize_text(h_id_raw)
             h_id = h_id_text.lstrip('0') if h_id_text != '0' else '0'
-
             lookup_key = (h_id, name)
             found_bed_number = self.bed_number_lookup.get(lookup_key)
-            
             if found_bed_number:
                 self.log(f"为患者 '{name_raw}' (住院号: {h_id_raw}) 成功匹配到床号: {found_bed_number}", "info")
             else:
                 self.log(f"患者 '{name_raw}' (住院号: {h_id_raw}) 匹配失败。程序尝试使用的标准化键为: ('{h_id}', '{name}')", "warning")
-            
             return found_bed_number
         df['final_bed_number'] = df.apply(find_bed_number, axis=1)
         self.log("床号匹配完成。")
@@ -304,6 +302,7 @@ class DocumentGenerator:
 class App:
     def __init__(self, root):
         self.root = root
+        self.surgery_query_files = [] # V3.0: 用于存储多个文件路径
         self.setup_fonts()
         self.setup_window()
         self.create_widgets()
@@ -318,7 +317,7 @@ class App:
 
     def setup_window(self):
         self.root.title(CONFIG['app_title'])
-        self.root.geometry("1000x950")
+        self.root.geometry("1000x1050") # 稍微增加高度以容纳新控件
         self.root.resizable(False, False)
 
     def create_widgets(self):
@@ -340,16 +339,32 @@ class App:
         tk.Label(title_frame, text="日间手术随访表生成系统", font=self.font_title, bg=default_bg).pack(pady=(5, 0))
         content_frame = ttk.Frame(self.root, padding="10")
         content_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # --- V3.0: 界面更新 ---
         file_frame = ttk.LabelFrame(content_frame, text="步骤1: 选择文件和路径", padding="10")
         file_frame.pack(fill=tk.X, expand=True, pady=5)
+        
         self.excel_path_var = tk.StringVar()
-        self.surgery_query_path_var = tk.StringVar()
         self.template_path_var = tk.StringVar()
         self.output_dir_var = tk.StringVar()
+        
         self.create_file_selector(file_frame, "出院患者列表:", self.excel_path_var, self.select_excel_file)
-        self.create_file_selector(file_frame, "手术查询文件:", self.surgery_query_path_var, self.select_surgery_query_file)
+        
+        # 手术查询文件多选区域
+        surgery_frame = ttk.LabelFrame(file_frame, text="手术查询文件 (可多选)", padding="5")
+        surgery_frame.pack(fill=tk.X, expand=True, pady=(5,0))
+        
+        self.surgery_listbox = tk.Listbox(surgery_frame, height=4, font=self.font_normal)
+        self.surgery_listbox.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0,5))
+        
+        surgery_buttons_frame = ttk.Frame(surgery_frame)
+        surgery_buttons_frame.pack(side=tk.LEFT, fill=tk.Y)
+        ttk.Button(surgery_buttons_frame, text="添加文件", command=self.select_surgery_query_files).pack(fill=tk.X, pady=2)
+        ttk.Button(surgery_buttons_frame, text="清空列表", command=self.clear_surgery_query_files).pack(fill=tk.X, pady=2)
+        
         self.create_file_selector(file_frame, "Word模板:", self.template_path_var, self.select_template_file)
         self.create_file_selector(file_frame, "输出文件夹:", self.output_dir_var, self.select_output_dir)
+        
         control_frame = ttk.LabelFrame(content_frame, text="步骤2: 开始生成", padding="10")
         control_frame.pack(fill=tk.X, expand=True, pady=10)
         style.configure("Accent.TButton", foreground="white", background="#0078D7", font=self.font_button)
@@ -375,9 +390,19 @@ class App:
         path = filedialog.askopenfilename(title="选择出院患者记录单", filetypes=[("Excel文件", "*.xlsx *.xls")])
         if path: self.excel_path_var.set(path)
 
-    def select_surgery_query_file(self):
-        path = filedialog.askopenfilename(title="选择手术查询文件（用于匹配床号）", filetypes=[("Excel文件", "*.xlsx *.xls")])
-        if path: self.surgery_query_path_var.set(path)
+    # V3.0: 新增方法
+    def select_surgery_query_files(self):
+        paths = filedialog.askopenfilenames(title="选择一个或多个手术查询文件", filetypes=[("Excel文件", "*.xlsx *.xls")])
+        if paths:
+            for path in paths:
+                if path not in self.surgery_query_files:
+                    self.surgery_query_files.append(path)
+                    self.surgery_listbox.insert(tk.END, os.path.basename(path))
+
+    # V3.0: 新增方法
+    def clear_surgery_query_files(self):
+        self.surgery_query_files.clear()
+        self.surgery_listbox.delete(0, tk.END)
 
     def select_template_file(self):
         path = filedialog.askopenfilename(title="选择随访表模板", filetypes=[("Word模板", "*.docx")])
@@ -403,15 +428,21 @@ class App:
         self.root.after(0, lambda: self.progress_bar.config(value=value))
 
     def start_generation(self):
-        if not all([self.excel_path_var.get(), self.surgery_query_path_var.get(), self.template_path_var.get(), self.output_dir_var.get()]):
-            messagebox.showwarning("信息不全", "请先选择好全部4个文件/路径：\n1. 出院患者列表\n2. 手术查询文件\n3. Word模板\n4. 输出文件夹")
+        # V3.0: 更新检查逻辑
+        if not all([self.excel_path_var.get(), self.template_path_var.get(), self.output_dir_var.get()]):
+            messagebox.showwarning("信息不全", "请先选择好“出院患者列表”、“Word模板”和“输出文件夹”。")
             return
+        
+        if not self.surgery_query_files:
+            if not messagebox.askyesno("确认操作", "您没有选择任何“手术查询文件”。\n程序将无法补充床号，是否继续？"):
+                return
+
         self.start_button.config(state='disabled')
         self.progress_bar['value'] = 0
         self.log_text.config(state='normal'); self.log_text.delete('1.0', tk.END); self.log_text.config(state='disabled')
         generator = DocumentGenerator(
             excel_path=self.excel_path_var.get(), 
-            surgery_query_path=self.surgery_query_path_var.get(),
+            surgery_query_paths=self.surgery_query_files, # V3.0: 传递文件列表
             template_path=self.template_path_var.get(), 
             output_dir=self.output_dir_var.get(), 
             app_instance=self
