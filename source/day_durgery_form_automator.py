@@ -2,12 +2,12 @@
 """
 日间手术随访表生成系统 (功能增强版)
 
-版本 V4.2 更新内容:
-- [UI终版] 为可拖拽的左右分栏增加了范围限制(320px-520px)，防止面板被完全隐藏。
+版本 V4.3 更新内容:
+- [UI终版] 修正了分栏限制的事件处理逻辑，通过返回"break"中断事件传播，确保拖拽范围限制(320px-520px)严格生效。
 - [UI终版] 这是结合了所有用户反馈的最终稳定版本。
 
-版本 V4.1 更新内容:
-- [UI修正] 采用事件绑定机制(<Configure>)来设置分栏初始位置，解决了程序启动时左侧面板被压缩的顽固问题。
+版本 V4.2 更新内容:
+- [UI修正] 为可拖拽的左右分栏增加了范围限制。(此方案在V4.3中被修正)
 
 作者：顾江江 (由AI优化和修复)
 """
@@ -36,7 +36,7 @@ except ImportError:
 
 # ======================== 全局配置 ========================
 CONFIG = {
-    "app_title": "日间手术随访表生成系统 V4.2",
+    "app_title": "日间手术随访表生成系统 V4.3",
     "day_surgery_max_days": 2,
     "column_mapping": {
         "name": "姓名", "department": "出院科室", "hospital_id": "住院号",
@@ -353,11 +353,13 @@ class App:
             main_pane.unbind("<Configure>")
         
         def limit_sash_movement(event):
-            pos = main_pane.sashpos(0)
-            if pos < 320:
+            # 使用 event.x 获取鼠标当前位置来判断
+            if event.x < 320:
                 main_pane.sashpos(0, 320)
-            elif pos > 520:
+                return "break" # 中断事件，防止默认行为覆盖我们的设置
+            if event.x > 520:
                 main_pane.sashpos(0, 520)
+                return "break" # 中断事件
 
         main_pane.bind("<Configure>", set_initial_sash)
         main_pane.bind("<B1-Motion>", limit_sash_movement)
