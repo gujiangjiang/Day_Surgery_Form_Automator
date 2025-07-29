@@ -2,13 +2,13 @@
 """
 日间手术随访表生成系统 (功能增强版)
 
-版本 V3.7 更新内容:
-- [UI终版] 严格按照用户要求，将窗口固定为800x600且不可调整大小。
-- [UI终版] 使用精确定位重写布局，确保左侧操作区为主体，并大幅压缩控件间距，使布局更紧凑。
-- [UI终版] 放弃所有不稳定的自动布局与DPI适配方案，确保在所有屏幕上显示效果高度一致。
+版本 V3.8 更新内容:
+- [UI终版] 窗口大小严格固定为用户指定的685x530，且不可调整大小。
+- [UI终版] 恢复可拖拽的左右分栏功能，同时保持初始布局的紧凑和美观。
+- [UI终版] 优化控件间距，确保界面紧凑，符合用户要求。
 
-版本 V3.6 更新内容:
-- [UI修正] 恢复可拖拽布局并调整比例。(此方案已在V3.7中被取代)
+版本 V3.7 更新内容:
+- [布局修正] 使用精确定位重写布局，压缩控件间距。(此方案在V3.8中被融合优化)
 
 作者：顾江江 (由AI优化和修复)
 """
@@ -37,7 +37,7 @@ except ImportError:
 
 # ======================== 全局配置 ========================
 CONFIG = {
-    "app_title": "日间手术随访表生成系统 V3.7",
+    "app_title": "日间手术随访表生成系统 V3.8",
     "day_surgery_max_days": 2,
     "column_mapping": {
         "name": "姓名", "department": "出院科室", "hospital_id": "住院号",
@@ -336,16 +336,21 @@ class App:
         tk.Label(top_title_frame, text="丹阳市人民医院", font=self.font_subtitle, fg="#0066cc", bg=default_bg).pack()
         tk.Label(top_title_frame, text="日间手术随访表生成系统", font=self.font_title, bg=default_bg).pack()
 
-        # 主内容区
-        main_frame = ttk.Frame(self.root)
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 5))
+        # 使用PanedWindow实现可拖拽的左右布局
+        main_pane = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
+        main_pane.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 5))
 
-        # --- 左侧控制面板 ---
-        left_panel = ttk.Frame(main_frame)
-        left_panel.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 5))
+        # 左侧控制面板
+        left_panel = ttk.Frame(main_pane, padding=(5, 0, 5, 0))
+        main_pane.add(left_panel, weight=3) # 初始权重，左边大
 
+        # 右侧日志面板
+        right_panel = ttk.Frame(main_pane, padding=(5, 0, 5, 0))
+        main_pane.add(right_panel, weight=2) # 初始权重，右边小
+
+        # --- 将控件填充到左侧面板 ---
         file_frame = ttk.LabelFrame(left_panel, text="步骤1: 选择文件和路径", padding=5)
-        file_frame.pack(fill=tk.X, pady=(0, 5))
+        file_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 5))
         
         self.excel_path_var = tk.StringVar()
         self.template_path_var = tk.StringVar()
@@ -373,10 +378,7 @@ class App:
         self.start_button = ttk.Button(control_frame, text="开始生成", command=self.start_generation, style="Accent.TButton")
         self.start_button.pack(pady=5, ipady=5, ipadx=20)
 
-        # --- 右侧日志面板 ---
-        right_panel = ttk.Frame(main_frame)
-        right_panel.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
-        
+        # --- 将控件填充到右侧面板 ---
         progress_frame = ttk.LabelFrame(right_panel, text="处理进度与日志", padding=10)
         progress_frame.pack(fill=tk.BOTH, expand=True)
         
