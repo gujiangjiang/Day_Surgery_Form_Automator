@@ -9,6 +9,8 @@
 ![截图](./docs/images/screenshots/screenshot.png)
 *<p align="center">软件截图</p>*
 
+### 更新日志：[CHANGELOG](./docs/changelog.md)
+
 ---
 
 ## ✨ 核心功能与优势
@@ -32,47 +34,7 @@
 
 ## 🚀 安装与运行
 
-**1. 准备环境**
-
-* 确保您的电脑上安装了 [Python 3.7](https://www.python.org/downloads/) 或更高版本。
-* (推荐) 创建并激活一个虚拟环境，以保持项目依赖的纯净：
-  ```bash
-  python -m venv venv
-  # Windows
-  .\venv\Scripts\activate
-  # macOS / Linux
-  source venv/bin/activate
-  ```
-
-**2. 安装依赖**
-
-本程序需要 `pandas` 和 `python-docx` 两个库。请运行以下命令进行安装：
-
-```bash
-pip install pandas python-docx openpyxl
-```
-*(注: `openpyxl` 是 `pandas` 读写 `.xlsx` 文件所必需的)*
-
-**3. 运行程序**
-
-直接运行主脚本文件：
-
-```bash
-python day_durgery_form_automator.py
-```
-
-**4. 打包为EXE (可选)**
-
-如果您希望将程序分享给没有安装Python环境的同事，可以使用 `PyInstaller` 将其打包为单个可执行文件：
-
-```bash
-# 安装 PyInstaller
-pip install pyinstaller
-
-# 执行打包命令
-python -m PyInstaller --onefile --windowed --icon=app.ico --name="day_durgery_form_automator" day_durgery_form_automator.py
-```
-打包成功后，在生成的 `dist` 文件夹中即可找到 `.exe` 文件。
+### 自动化程序编译与打包指南：[BUILD_GUIDE](./docs/BUILD_GUIDE.md)
 
 ## 🔧 配置说明
 
