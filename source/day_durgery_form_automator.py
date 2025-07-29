@@ -2,12 +2,13 @@
 """
 日间手术随访表生成系统 (功能增强版)
 
-版本 V3.2 更新内容:
-- [UI重构] 使用PanedWindow控件重写主界面，实现可拖拽调整的左右分栏布局，彻底解决控件遮挡问题。
-- [布局优化] 根据用户反馈，启动时默认增大左侧控制面板的宽度，优化视觉和操作体验。
+版本 V3.3 更新内容:
+- [DPI适配] 新增动态缩放功能，程序可自动检测屏幕DPI并缩放所有UI元素，解决了在普通和高分屏上显示错位或大小不当的问题。
+- [布局修正] 将主标题移至顶层框架，确保其在程序窗口内全局居中显示。
+- 移除了固定的初始窗口大小，让程序根据屏幕缩放比例自适应，并设定了缩放后的最小尺寸。
 
-版本 V3.1 更新内容:
-- [UI优化] 调整程序主窗口为左右布局，左侧为控制面板，右侧为日志和进度显示。
+版本 V3.2 更新内容:
+- [UI重构] 使用PanedWindow控件重写主界面，实现可拖拽调整的左右分栏布局。
 
 作者：顾江江 (由AI优化和修复)
 """
@@ -36,7 +37,7 @@ except ImportError:
 
 # ======================== 全局配置 ========================
 CONFIG = {
-    "app_title": "日间手术随访表生成系统 V3.2",
+    "app_title": "日间手术随访表生成系统 V3.3",
     "day_surgery_max_days": 2,
     "column_mapping": {
         "name": "姓名", "department": "出院科室", "hospital_id": "住院号",
@@ -294,22 +295,41 @@ class App:
     def __init__(self, root):
         self.root = root
         self.surgery_query_files = []
+        
+        # V3.3: DPI Scaling
+        self.scaling_factor = self._get_scaling_factor()
+        
         self.setup_fonts()
         self.setup_window()
         self.create_widgets()
 
+    def _get_scaling_factor(self):
+        """获取屏幕缩放比例"""
+        try:
+            # 在Windows上，SetProcessDpiAwareness(1)调用后，Tkinter可以获取正确的DPI
+            dpi = self.root.winfo_fpixels('1i')
+            scaling = dpi / 96.0 # Windows标准DPI是96
+            return scaling
+        except Exception:
+            return 1.0 # 失败则返回默认值
+
     def setup_fonts(self):
-        self.font_normal = ("微软雅黑", 9)
-        self.font_bold = ("微软雅黑", 10, "bold")
-        self.font_title = ("微软雅黑", 20, "bold")
-        self.font_subtitle = ("微软雅黑", 16, "bold")
-        self.font_button = ("微软雅黑", 12, "bold")
-        self.font_disclaimer = ("微软雅黑", 10)
+        """根据缩放比例设置所有字体大小"""
+        s = self.scaling_factor
+        self.font_normal = ("微软雅黑", int(9 * s))
+        self.font_bold = ("微软雅黑", int(10 * s), "bold")
+        self.font_title = ("微软雅黑", int(20 * s), "bold")
+        self.font_subtitle = ("微软雅黑", int(16 * s), "bold")
+        self.font_button = ("微软雅黑", int(12 * s), "bold")
+        self.font_disclaimer = ("微软雅黑", int(10 * s))
 
     def setup_window(self):
+        """设置窗口属性，移除固定大小，使用可缩放的最小尺寸"""
         self.root.title(CONFIG['app_title'])
-        self.root.geometry("1200x800")
-        self.root.minsize(1000, 600)
+        # 移除固定的geometry，让窗口自适应内容
+        # self.root.geometry("1200x800")
+        s = self.scaling_factor
+        self.root.minsize(int(1000 * s), int(600 * s))
         self.root.resizable(True, True)
 
     def create_widgets(self):
@@ -319,8 +339,9 @@ class App:
         self.root.configure(bg=default_bg)
         self.log_text_tags = {"warning": {"foreground": "orange"}, "error": {"foreground": "red"}}
 
-        # --- V3.2: 布局重构 ---
+        # --- V3.3: 布局重构 ---
 
+        # 底部信息栏
         bottom_frame = tk.Frame(self.root, bg=default_bg)
         bottom_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=5)
         tk.Label(bottom_frame, text=f"编程日期：{datetime.now().strftime('%Y年%m月%d日')}", font=self.font_normal, fg="#666666", bg=default_bg).pack(side=tk.LEFT)
@@ -330,24 +351,25 @@ class App:
         disclaimer_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10)
         tk.Label(disclaimer_frame, text="本工具仅供骨科内部测试，请勿外传", font=self.font_disclaimer, fg="red", bg=default_bg).pack()
 
+        # 顶部全局标题栏
+        top_title_frame = tk.Frame(self.root, bg=default_bg)
+        top_title_frame.pack(side=tk.TOP, fill=tk.X, pady=(15, 10))
+        tk.Label(top_title_frame, text="丹阳市人民医院", font=self.font_subtitle, fg="#0066cc", bg=default_bg).pack()
+        tk.Label(top_title_frame, text="日间手术随访表生成系统", font=self.font_title, bg=default_bg).pack()
+
         # 使用PanedWindow实现可拖拽的左右布局
         main_pane = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
-        main_pane.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        main_pane.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 5))
 
         # 左侧控制面板
         left_panel = ttk.Frame(main_pane, padding="10")
-        main_pane.add(left_panel, weight=2) # 左侧权重更大，占据更多初始空间
+        main_pane.add(left_panel, weight=2)
 
         # 右侧日志面板
         right_panel = ttk.Frame(main_pane, padding="10")
-        main_pane.add(right_panel, weight=1) # 右侧权重较小
+        main_pane.add(right_panel, weight=1)
 
         # --- 将控件填充到左侧面板 ---
-        title_frame = tk.Frame(left_panel, bg=default_bg)
-        title_frame.pack(pady=(5, 10), fill=tk.X)
-        tk.Label(title_frame, text="丹阳市人民医院", font=self.font_subtitle, fg="#0066cc", bg=default_bg).pack()
-        tk.Label(title_frame, text="日间手术随访表生成系统", font=self.font_title, bg=default_bg).pack(pady=(5, 0))
-
         file_frame = ttk.LabelFrame(left_panel, text="步骤1: 选择文件和路径", padding="10")
         file_frame.pack(fill=tk.X, pady=5)
         
@@ -460,10 +482,12 @@ class App:
 # ======================== 主程序入口 ========================
 if __name__ == "__main__":
     try:
+        # V3.3: 这是在Windows上实现DPI感知的关键步骤
         import ctypes
         ctypes.windll.shcore.SetProcessDpiAwareness(1)
     except Exception:
         pass
+    
     root = tk.Tk()
     app = App(root)
     root.mainloop()
