@@ -2,13 +2,13 @@
 """
 日间手术随访表生成系统 (功能增强版)
 
-版本 V3.5 更新内容:
-- [布局终版] 严格按照用户要求，将窗口固定为800x600且不可调整大小。
-- [布局终版] 精确控制左右分栏初始宽度，确保左侧操作区为主体，右侧日志区为辅。
-- [显示终版] 移除所有不稳定的DPI适配逻辑，确保在所有屏幕上显示效果一致。
+版本 V3.6 更新内容:
+- [UI终版] 恢复可拖拽的左右分栏布局，并优化初始宽度比例为4:3，使布局更协调。
+- [UI终版] 修正了左右两栏边框对齐的问题，视觉效果更统一。
+- [UI终版] 恢复窗口可调整大小的功能，并设定了合理的最小尺寸。
 
-版本 V3.4 更新内容:
-- [UI修正] 尝试使用原生渲染和固定大小解决显示问题。(此方案已在V3.5中被完全重构)
+版本 V3.5 更新内容:
+- [布局修正] 尝试使用固定布局解决显示问题。(此方案已在V3.6中被取代)
 
 作者：顾江江 (由AI优化和修复)
 """
@@ -37,7 +37,7 @@ except ImportError:
 
 # ======================== 全局配置 ========================
 CONFIG = {
-    "app_title": "日间手术随访表生成系统 V3.5",
+    "app_title": "日间手术随访表生成系统 V3.6",
     "day_surgery_max_days": 2,
     "column_mapping": {
         "name": "姓名", "department": "出院科室", "hospital_id": "住院号",
@@ -309,10 +309,10 @@ class App:
         self.font_disclaimer = ("微软雅黑", 10)
 
     def setup_window(self):
-        """V3.5: 严格按照用户要求设置固定的初始大小和不可调整属性"""
         self.root.title(CONFIG['app_title'])
-        self.root.geometry("800x600") 
-        self.root.resizable(False, False)
+        self.root.geometry("1100x750") 
+        self.root.minsize(900, 600)
+        self.root.resizable(True, True)
 
     def create_widgets(self):
         style = ttk.Style(self.root)
@@ -333,30 +333,25 @@ class App:
 
         # 顶部全局标题栏
         top_title_frame = tk.Frame(self.root, bg=default_bg)
-        top_title_frame.pack(side=tk.TOP, fill=tk.X, pady=(15, 10))
+        top_title_frame.pack(side=tk.TOP, fill=tk.X, pady=(15, 5))
         tk.Label(top_title_frame, text="丹阳市人民医院", font=self.font_subtitle, fg="#0066cc", bg=default_bg).pack()
         tk.Label(top_title_frame, text="日间手术随访表生成系统", font=self.font_title, bg=default_bg).pack()
 
-        # V3.5: 使用Frame和pack代替PanedWindow，以实现更精确的固定布局
-        main_frame = ttk.Frame(self.root, padding=(10, 0, 10, 5))
-        main_frame.pack(fill=tk.BOTH, expand=True)
+        # 使用PanedWindow实现可拖拽的左右布局
+        main_pane = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
+        main_pane.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 5))
 
-        # 左侧控制面板 (固定宽度)
-        left_panel = ttk.Frame(main_frame)
-        left_panel.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 5))
+        # 左侧控制面板
+        left_panel = ttk.Frame(main_pane, padding=(10, 5, 10, 0))
+        main_pane.add(left_panel, weight=4) # V3.6: 调整权重
 
-        # 右侧日志面板 (填充剩余空间)
-        right_panel = ttk.Frame(main_frame)
-        right_panel.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+        # 右侧日志面板
+        right_panel = ttk.Frame(main_pane, padding=(10, 5, 10, 0))
+        main_pane.add(right_panel, weight=3) # V3.6: 调整权重
 
         # --- 将控件填充到左侧面板 ---
-        # 通过一个外层Frame来控制左侧面板的整体宽度
-        left_content_frame = ttk.Frame(left_panel, width=520) # 精确控制宽度
-        left_content_frame.pack(fill=tk.BOTH, expand=True)
-        left_content_frame.pack_propagate(False) # 防止内部控件撑开Frame
-
-        file_frame = ttk.LabelFrame(left_content_frame, text="步骤1: 选择文件和路径", padding="10")
-        file_frame.pack(fill=tk.X, pady=5, padx=5)
+        file_frame = ttk.LabelFrame(left_panel, text="步骤1: 选择文件和路径", padding="10")
+        file_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 5))
         
         self.excel_path_var = tk.StringVar()
         self.template_path_var = tk.StringVar()
@@ -378,8 +373,8 @@ class App:
         self.create_file_selector(file_frame, "Word模板:", self.template_path_var, self.select_template_file)
         self.create_file_selector(file_frame, "输出文件夹:", self.output_dir_var, self.select_output_dir)
         
-        control_frame = ttk.LabelFrame(left_content_frame, text="步骤2: 开始生成", padding="10")
-        control_frame.pack(fill=tk.X, pady=10, padx=5)
+        control_frame = ttk.LabelFrame(left_panel, text="步骤2: 开始生成", padding="10")
+        control_frame.pack(fill=tk.BOTH, expand=False, pady=(5,0)) # expand=False
         style.configure("Accent.TButton", foreground="white", background="#0078D7", font=self.font_button)
         self.start_button = ttk.Button(control_frame, text="开始生成", command=self.start_generation, style="Accent.TButton")
         self.start_button.pack(pady=5, ipady=5, ipadx=20)
@@ -391,7 +386,6 @@ class App:
         self.progress_bar = ttk.Progressbar(progress_frame, orient='horizontal', mode='determinate')
         self.progress_bar.pack(fill=tk.X, pady=(0, 5))
         
-        # V3.5: 减小日志框的高度
         self.log_text = scrolledtext.ScrolledText(progress_frame, height=5, state='disabled', font=self.font_normal)
         self.log_text.pack(fill=tk.BOTH, expand=True)
         for tag, config in self.log_text_tags.items():
