@@ -2,12 +2,13 @@
 """
 日间手术随访表生成系统 (功能增强版)
 
-版本 V4.5 更新内容:
-- [UI终版] 新增动态DPI检测与缩放功能，窗口、分栏位置、字体等所有尺寸会根据屏幕缩放比例自动调整，完美适配高分屏。
+版本 V4.6 更新内容:
+- [UI终版] 移除了对字体大小的DPI缩放，恢复为固定大小，解决了在高分屏上字体过大的问题。
+- [UI终版] 保留对窗口和布局尺寸的DPI缩放，确保在高分屏上整体布局协调。
 - [UI终版] 这是结合了所有用户反馈的最终稳定版本。
 
-版本 V4.4 更新内容:
-- [UI修正] 微调左右两栏的内边距(padding)，实现两侧功能块边框的完美垂直对齐。
+版本 V4.5 更新内容:
+- [UI修正] 新增动态DPI检测与缩放功能。(此方案在V4.6中被优化)
 
 作者：顾江江 (由AI优化和修复)
 """
@@ -36,7 +37,7 @@ except ImportError:
 
 # ======================== 全局配置 ========================
 CONFIG = {
-    "app_title": "日间手术随访表生成系统 V4.5",
+    "app_title": "日间手术随访表生成系统 V4.6",
     "day_surgery_max_days": 2,
     "column_mapping": {
         "name": "姓名", "department": "出院科室", "hospital_id": "住院号",
@@ -295,7 +296,6 @@ class App:
         self.root = root
         self.surgery_query_files = []
         
-        # V4.5: DPI Scaling
         self.scaling_factor = self._get_scaling_factor()
         
         self.setup_fonts()
@@ -307,20 +307,19 @@ class App:
         try:
             dpi = self.root.winfo_fpixels('1i')
             scaling = dpi / 96.0
-            if scaling < 0.75: return 1.0 # 避免过小的缩放比例
+            if scaling < 0.75: return 1.0
             return scaling
         except Exception:
             return 1.0
 
     def setup_fonts(self):
-        """根据缩放比例设置所有字体大小"""
-        s = self.scaling_factor
-        self.font_normal = ("微软雅黑", int(9 * s))
-        self.font_bold = ("微软雅黑", int(10 * s), "bold")
-        self.font_title = ("微软雅黑", int(20 * s), "bold")
-        self.font_subtitle = ("微软雅黑", int(16 * s), "bold")
-        self.font_button = ("微软雅黑", int(12 * s), "bold")
-        self.font_disclaimer = ("微软雅黑", int(10 * s))
+        """V4.6: 使用固定的字体大小，不再手动缩放"""
+        self.font_normal = ("微软雅黑", 9)
+        self.font_bold = ("微软雅黑", 10, "bold")
+        self.font_title = ("微软雅黑", 20, "bold")
+        self.font_subtitle = ("微软雅黑", 16, "bold")
+        self.font_button = ("微软雅黑", 12, "bold")
+        self.font_disclaimer = ("微软雅黑", 10)
 
     def setup_window(self):
         """根据缩放比例设置窗口大小"""
@@ -364,7 +363,6 @@ class App:
         right_panel = ttk.Frame(main_pane, padding=(5, 5, 5, 5))
         main_pane.add(right_panel)
 
-        # V4.5: 根据缩放比例计算分栏位置和限制
         s = self.scaling_factor
         sash_default = int(420 * s)
         sash_min = int(320 * s)
