@@ -1,7 +1,7 @@
 # Day Surgery Form Automator (日间手术随访表生成系统)
 
 [![Python](https://img.shields.io/badge/Python-3.7+-blue.svg)](https://www.python.org/)
-[![Version](https://img.shields.io/badge/Version-4.7%20Final-brightgreen.svg)]()
+[![Version](https://img.shields.io/badge/Version-4.8-brightgreen.svg)]()
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
 这是一款功能强大且用户友好的医疗文档自动化工具，专为简化“日间手术随访表”的生成流程而设计。历经多次迭代优化，此最终版本在**数据处理能力、用户体验、界面布局和跨平台显示兼容性**上都达到了稳定与完善。

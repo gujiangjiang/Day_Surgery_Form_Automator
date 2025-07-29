@@ -2,14 +2,16 @@
 """
 日间手术随访表生成系统 (功能增强版)
 
+版本 V4.8 更新内容:
+- [功能新增] 集成Nuitka启动画面关闭逻辑，打包后可实现启动画面的自动关闭。
+- [代码重构] 优化Word文档内容替换逻辑，消除重复代码，提高可维护性。
+- [体验增强] 新增“床号匹配失败”的最终汇总弹窗提醒，方便用户快速定位问题数据。
+- [配置优化] 将随访天数、未知床号占位符等固定参数移入全局CONFIG，便于统一管理。
+
 版本 V4.7 更新内容:
 - [功能优化] 将“患者出院年月”从统一月份改为根据每位患者的实际出院日期生成，文件名同步更新。
 - [功能优化] 移除了选择主导月份的弹窗，流程更自动化。
 - [UI终版] 这是结合了所有用户反馈的最终稳定版本。
-
-版本 V4.6 更新内容:
-- [UI修正] 移除了对字体大小的DPI缩放，恢复为固定大小，解决了在高分屏上字体过大的问题。
-- [UI修正] 保留对窗口和布局尺寸的DPI缩放，确保在高分屏上整体布局协调。
 
 作者：顾江江 (由AI优化和修复)
 """
@@ -36,10 +38,20 @@ except ImportError:
     )
     sys.exit(1)
 
+# 尝试导入Nuitka启动画面模块
+try:
+    import nuitka_splashscreen_python
+    splash_active = True
+except ImportError:
+    splash_active = False
+
 # ======================== 全局配置 ========================
 CONFIG = {
-    "app_title": "日间手术随访表生成系统 V4.7",
+    "app_title": "日间手术随访表生成系统 V4.8",
     "day_surgery_max_days": 2,
+    "follow_up_days": 7,  # 随访发生于出院后的天数
+    "unknown_bed_placeholder": "（手动填写）", # Word内容中的床号未知占位符
+    "unknown_bed_filename_suffix": "（床号未知）",   # 文件名中的床号未知后缀
     "column_mapping": {
         "name": "姓名", "department": "出院科室", "hospital_id": "住院号",
         "discharge_date": "出院日期", "hospital_days": "住院天数", "gender": "性别",
@@ -87,6 +99,7 @@ class DocumentGenerator:
         self.output_dir = output_dir
         self.app = app_instance
         self.bed_number_lookup = {}
+        self.unmatched_patients = [] # 用于存储床号匹配失败的患者信息
 
     def log(self, message, level="info"):
         self.app.log_message(message, level)
@@ -98,8 +111,6 @@ class DocumentGenerator:
             self.log("开始读取出院患者列表Excel文件...")
             df = self.read_and_prepare_patient_excel()
             if df is None: return
-
-            # V4.7: 移除选择主导月份的逻辑
             
             df = self.merge_bed_numbers(df)
             day_surgery_df = self.filter_day_surgery_patients(df)
@@ -113,16 +124,24 @@ class DocumentGenerator:
             success_count = 0
             for index, row in enumerate(day_surgery_df.itertuples()):
                 try:
-                    # V4.7: 不再传递 patient_year_month
                     self.generate_single_document(row)
                     success_count += 1
                 except Exception as e:
                     self.log(f"处理行 {getattr(row, 'Index', 'N/A')} 时发生错误: {e}", "error")
                 self.update_progress((index + 1) / total_rows * 100)
+            
             self.log("="*30)
             self.log(f"处理完成！成功生成 {success_count} 份文档。")
             
-            # V4.7: 更新完成提示信息
+            # V4.8: 检查并报告床号匹配失败的汇总信息
+            if self.unmatched_patients:
+                summary_message = f"注意：有 {len(self.unmatched_patients)} 位患者未能匹配到床号，已在文件名和内容中标注：\n\n" + "\n".join(self.unmatched_patients)
+                self.log("="*30, "warning")
+                self.log("以下患者未能匹配到床号:", "warning")
+                for patient_info in self.unmatched_patients:
+                    self.log(f"- {patient_info}", "warning")
+                messagebox.showwarning("匹配提醒", summary_message)
+            
             final_message = f"成功生成 {success_count} 份随访表。\n" \
                           f"文件保存在: {self.output_dir}"
             messagebox.showinfo("完成", final_message)
@@ -217,6 +236,7 @@ class DocumentGenerator:
                 self.log(f"为患者 '{name_raw}' (住院号: {h_id_raw}) 成功匹配到床号: {found_bed_number}", "info")
             else:
                 self.log(f"患者 '{name_raw}' (住院号: {h_id_raw}) 匹配失败。程序尝试使用的标准化键为: ('{h_id}', '{name}')", "warning")
+                self.unmatched_patients.append(f"{name_raw} (住院号: {h_id_raw})")
             return found_bed_number
         df['final_bed_number'] = df.apply(find_bed_number, axis=1)
         self.log("床号匹配完成。")
@@ -229,7 +249,6 @@ class DocumentGenerator:
     def generate_single_document(self, row_data):
         replacements = {}
         
-        # V4.7: 根据当前行数据生成年月
         discharge_date_str = excel_date_to_str(getattr(row_data, 'discharge_date', ''))
         if discharge_date_str:
             try:
@@ -241,13 +260,13 @@ class DocumentGenerator:
             patient_year_month = "未知年月"
 
         replacements["{{患者出院年月}}"] = patient_year_month
-        replacements["{{随访日期}}"] = get_day_after_discharge(discharge_date_str)
+        replacements["{{随访日期}}"] = get_day_after_discharge(discharge_date_str, days=CONFIG["follow_up_days"])
         
         final_bed_number = getattr(row_data, 'final_bed_number', None)
         bed_number_is_unknown = not (pd.notna(final_bed_number) and str(final_bed_number).strip())
         for placeholder, key in CONFIG['template_placeholders'].items():
             if key == "bed_number":
-                replacements[placeholder] = str(final_bed_number) if not bed_number_is_unknown else "（手动填写）"
+                replacements[placeholder] = str(final_bed_number) if not bed_number_is_unknown else CONFIG["unknown_bed_placeholder"]
                 continue
             raw_value = getattr(row_data, key, "")
             if "date" in key:
@@ -257,10 +276,9 @@ class DocumentGenerator:
         patient_name = replacements.get("{{姓名}}", "未知姓名")
         department = replacements.get("{{科室}}", "未知科室")
         
-        # V4.7: 使用新的 patient_year_month 构建文件名
         base_filename = f"{patient_year_month}_{department}_日间手术随访_{replacements['{{随访日期}}']}_{patient_name}"
         if bed_number_is_unknown:
-            filename = f"{base_filename}（床号未知）.docx"
+            filename = f"{base_filename}{CONFIG['unknown_bed_filename_suffix']}.docx"
         else:
             filename = f"{base_filename}.docx"
         filename = "".join(c for c in filename if c not in r'\/:*?"<>|')
@@ -269,27 +287,22 @@ class DocumentGenerator:
         doc.save(os.path.join(self.output_dir, filename))
         self.log(f"已生成: {filename}")
 
-    def perform_replacements(self, doc, replacements):
-        for p in doc.paragraphs:
+    def _replace_in_element(self, element, replacements):
+        """辅助函数：在给定的元素（如文档、页眉、单元格）中递归执行替换"""
+        for p in element.paragraphs:
             for old, new in replacements.items():
-                if old in p.text: p.text = p.text.replace(old, new)
-        for table in doc.tables:
+                if old in p.text:
+                    p.text = p.text.replace(old, str(new)) # 确保new是字符串
+        for table in element.tables:
             for row in table.rows:
                 for cell in row.cells:
-                    for p in cell.paragraphs:
-                        for old, new in replacements.items():
-                            if old in p.text: p.text = p.text.replace(old, new)
+                    self._replace_in_element(cell, replacements)
+
+    def perform_replacements(self, doc, replacements):
+        """在文档的各个部分（正文、页眉）执行文本替换"""
+        self._replace_in_element(doc, replacements)
         for section in doc.sections:
-            header = section.header
-            for p in header.paragraphs:
-                for old, new in replacements.items():
-                    if old in p.text: p.text = p.text.replace(old, new)
-            for table in header.tables:
-                for row in table.rows:
-                    for cell in row.cells:
-                        for p in cell.paragraphs:
-                            for old, new in replacements.items():
-                                if old in p.text: p.text = p.text.replace(old, new)
+            self._replace_in_element(section.header, replacements)
 
 # ======================== GUI界面类 ========================
 class App:
@@ -314,7 +327,7 @@ class App:
             return 1.0
 
     def setup_fonts(self):
-        """V4.6: 使用固定的字体大小，不再手动缩放"""
+        """使用固定的字体大小，不再手动缩放"""
         self.font_normal = ("微软雅黑", 9)
         self.font_bold = ("微软雅黑", 10, "bold")
         self.font_title = ("微软雅黑", 20, "bold")
@@ -500,11 +513,22 @@ class App:
 # ======================== 主程序入口 ========================
 if __name__ == "__main__":
     try:
+        # 适配高DPI屏幕
         import ctypes
         ctypes.windll.shcore.SetProcessDpiAwareness(1)
     except Exception:
         pass
     
+    # 如果启动画面模块已加载，标记Python已开始部署
+    if splash_active:
+        nuitka_splashscreen_python.mark_as_deployed()
+
     root = tk.Tk()
     app = App(root)
+
+    # 在显示主窗口前，关闭启动画面
+    if splash_active:
+        nuitka_splashscreen_python.close()
+        
     root.mainloop()
+
