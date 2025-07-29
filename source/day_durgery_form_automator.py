@@ -2,13 +2,13 @@
 """
 日间手术随访表生成系统 (功能增强版)
 
-版本 V3.8 更新内容:
-- [UI终版] 窗口大小严格固定为用户指定的685x530，且不可调整大小。
-- [UI终版] 恢复可拖拽的左右分栏功能，同时保持初始布局的紧凑和美观。
-- [UI终版] 优化控件间距，确保界面紧凑，符合用户要求。
+版本 V3.9 更新内容:
+- [UI终版] 为可拖拽的左右分栏设置了明确的初始位置，解决了程序启动时左侧面板被压缩的问题。
+- [UI终版] 微调了初始分栏比例，使布局更协调。
 
-版本 V3.7 更新内容:
-- [布局修正] 使用精确定位重写布局，压缩控件间距。(此方案在V3.8中被融合优化)
+版本 V3.8 更新内容:
+- [UI修正] 窗口大小严格固定为用户指定的685x530，且不可调整大小。
+- [UI修正] 恢复可拖拽的左右分栏功能，同时保持初始布局的紧凑和美观。
 
 作者：顾江江 (由AI优化和修复)
 """
@@ -37,7 +37,7 @@ except ImportError:
 
 # ======================== 全局配置 ========================
 CONFIG = {
-    "app_title": "日间手术随访表生成系统 V3.8",
+    "app_title": "日间手术随访表生成系统 V3.9",
     "day_surgery_max_days": 2,
     "column_mapping": {
         "name": "姓名", "department": "出院科室", "hospital_id": "住院号",
@@ -342,11 +342,15 @@ class App:
 
         # 左侧控制面板
         left_panel = ttk.Frame(main_pane, padding=(5, 0, 5, 0))
-        main_pane.add(left_panel, weight=3) # 初始权重，左边大
+        main_pane.add(left_panel)
 
         # 右侧日志面板
         right_panel = ttk.Frame(main_pane, padding=(5, 0, 5, 0))
-        main_pane.add(right_panel, weight=2) # 初始权重，右边小
+        main_pane.add(right_panel)
+
+        # V3.9: 关键修正 - 在窗口绘制完成后设置分栏的初始位置
+        self.root.update_idletasks()
+        main_pane.sashpos(0, 420) # 将第一个分栏的位置设置在420像素处
 
         # --- 将控件填充到左侧面板 ---
         file_frame = ttk.LabelFrame(left_panel, text="步骤1: 选择文件和路径", padding=5)
@@ -469,3 +473,4 @@ if __name__ == "__main__":
     root = tk.Tk()
     app = App(root)
     root.mainloop()
+
