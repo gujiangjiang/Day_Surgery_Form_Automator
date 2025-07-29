@@ -2,14 +2,14 @@
 """
 日间手术随访表生成系统 (功能增强版)
 
-版本 V5.1 (最终优化版) 更新内容:
-- [启动画面修正] 修复了使用Nuitka打包后，启动画面在某些情况下无法自动关闭的问题。通过after_idle确保关闭时机正确。
+版本 V5.2 (启动修正版) 更新内容:
+- [启动画面修正] 采用更稳妥的 root.after(200, close_splash) 方式代替 after_idle，彻底修复因时序问题导致的启动画面残留和“未响应”的顽固问题。
+
+版本 V5.1 更新内容:
+- [启动画面修正] 尝试使用after_idle修复启动画面无法自动关闭的问题。
 
 版本 V5.0 更新内容:
 - [UI优化] 程序启动时窗口会自动居中显示，提升用户体验。
-
-版本 V4.9 更新内容:
-- [逻辑修正] 优化了“床号匹配失败”的提醒机制，现在只提醒符合日间手术条件的患者，过滤了无关人员的信息，提醒更精准。
 
 作者：顾江江 (由AI优化和修复)
 """
@@ -45,7 +45,7 @@ except ImportError:
 
 # ======================== 全局配置 ========================
 CONFIG = {
-    "app_title": "日间手术随访表生成系统 V5.1",
+    "app_title": "日间手术随访表生成系统 V5.2",
     "day_surgery_max_days": 2,
     "follow_up_days": 7,  # 随访发生于出院后的天数
     "unknown_bed_placeholder": "（手动填写）", # Word内容中的床号未知占位符
@@ -542,10 +542,10 @@ if __name__ == "__main__":
     root = tk.Tk()
     app = App(root)
 
-    # V5.1修正：使用 after_idle 确保在主循环开始处理事件后，再关闭启动画面
-    # 这是最稳妥的方式，可以避免时序问题
+    # V5.2修正：使用 root.after() 给予一个短暂的延迟
+    # 这是最稳妥的方式，可以确保主窗口完全初始化后再关闭启动画面，避免时序问题
     if splash_active:
-        root.after_idle(nuitka_splashscreen_python.close)
+        root.after(200, nuitka_splashscreen_python.close)
         
     root.mainloop()
 
