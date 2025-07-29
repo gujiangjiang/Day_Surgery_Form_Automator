@@ -2,12 +2,12 @@
 """
 日间手术随访表生成系统 (功能增强版)
 
-版本 V4.4 更新内容:
-- [UI终版] 微调左右两栏的内边距(padding)，实现两侧功能块边框的完美垂直对齐。
+版本 V4.5 更新内容:
+- [UI终版] 新增动态DPI检测与缩放功能，窗口、分栏位置、字体等所有尺寸会根据屏幕缩放比例自动调整，完美适配高分屏。
 - [UI终版] 这是结合了所有用户反馈的最终稳定版本。
 
-版本 V4.3 更新内容:
-- [UI修正] 修正了分栏限制的事件处理逻辑，确保拖拽范围限制(320px-520px)严格生效。
+版本 V4.4 更新内容:
+- [UI修正] 微调左右两栏的内边距(padding)，实现两侧功能块边框的完美垂直对齐。
 
 作者：顾江江 (由AI优化和修复)
 """
@@ -36,7 +36,7 @@ except ImportError:
 
 # ======================== 全局配置 ========================
 CONFIG = {
-    "app_title": "日间手术随访表生成系统 V4.4",
+    "app_title": "日间手术随访表生成系统 V4.5",
     "day_surgery_max_days": 2,
     "column_mapping": {
         "name": "姓名", "department": "出院科室", "hospital_id": "住院号",
@@ -295,21 +295,40 @@ class App:
         self.root = root
         self.surgery_query_files = []
         
+        # V4.5: DPI Scaling
+        self.scaling_factor = self._get_scaling_factor()
+        
         self.setup_fonts()
         self.setup_window()
         self.create_widgets()
 
+    def _get_scaling_factor(self):
+        """获取屏幕缩放比例"""
+        try:
+            dpi = self.root.winfo_fpixels('1i')
+            scaling = dpi / 96.0
+            if scaling < 0.75: return 1.0 # 避免过小的缩放比例
+            return scaling
+        except Exception:
+            return 1.0
+
     def setup_fonts(self):
-        self.font_normal = ("微软雅黑", 9)
-        self.font_bold = ("微软雅黑", 10, "bold")
-        self.font_title = ("微软雅黑", 20, "bold")
-        self.font_subtitle = ("微软雅黑", 16, "bold")
-        self.font_button = ("微软雅黑", 12, "bold")
-        self.font_disclaimer = ("微软雅黑", 10)
+        """根据缩放比例设置所有字体大小"""
+        s = self.scaling_factor
+        self.font_normal = ("微软雅黑", int(9 * s))
+        self.font_bold = ("微软雅黑", int(10 * s), "bold")
+        self.font_title = ("微软雅黑", int(20 * s), "bold")
+        self.font_subtitle = ("微软雅黑", int(16 * s), "bold")
+        self.font_button = ("微软雅黑", int(12 * s), "bold")
+        self.font_disclaimer = ("微软雅黑", int(10 * s))
 
     def setup_window(self):
+        """根据缩放比例设置窗口大小"""
         self.root.title(CONFIG['app_title'])
-        self.root.geometry("685x530") 
+        s = self.scaling_factor
+        width = int(685 * s)
+        height = int(530 * s)
+        self.root.geometry(f"{width}x{height}") 
         self.root.resizable(False, False)
 
     def create_widgets(self):
@@ -339,33 +358,35 @@ class App:
         main_pane = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
         main_pane.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 5))
 
-        # V4.4: 统一左右面板的垂直padding以对齐边框
         left_panel = ttk.Frame(main_pane, padding=(5, 5, 5, 5))
         main_pane.add(left_panel)
 
         right_panel = ttk.Frame(main_pane, padding=(5, 5, 5, 5))
         main_pane.add(right_panel)
 
-        # 绑定事件来设置初始分栏位置并添加范围限制
+        # V4.5: 根据缩放比例计算分栏位置和限制
+        s = self.scaling_factor
+        sash_default = int(420 * s)
+        sash_min = int(320 * s)
+        sash_max = int(520 * s)
+
         def set_initial_sash(event):
-            main_pane.sashpos(0, 420)
+            main_pane.sashpos(0, sash_default)
             main_pane.unbind("<Configure>")
         
         def limit_sash_movement(event):
-            if event.x < 320:
-                main_pane.sashpos(0, 320)
+            if event.x < sash_min:
+                main_pane.sashpos(0, sash_min)
                 return "break"
-            if event.x > 520:
-                main_pane.sashpos(0, 520)
+            if event.x > sash_max:
+                main_pane.sashpos(0, sash_max)
                 return "break"
 
         main_pane.bind("<Configure>", set_initial_sash)
         main_pane.bind("<B1-Motion>", limit_sash_movement)
 
-
         # --- 将控件填充到左侧面板 ---
         file_frame = ttk.LabelFrame(left_panel, text="步骤1: 选择文件和路径", padding=5)
-        # V4.4: 移除此处的pady，由父容器的padding控制
         file_frame.pack(fill=tk.BOTH, expand=True) 
         
         self.excel_path_var = tk.StringVar()
@@ -388,9 +409,8 @@ class App:
         self.create_file_selector(file_frame, "Word模板:", self.template_path_var, self.select_template_file)
         self.create_file_selector(file_frame, "输出文件夹:", self.output_dir_var, self.select_output_dir)
         
-        # V4.4: 将第二个LabelFrame也放在一个容器里，以实现对齐
         left_bottom_container = ttk.Frame(left_panel)
-        left_bottom_container.pack(fill=tk.X, pady=(5,0)) # 5px的间距
+        left_bottom_container.pack(fill=tk.X, pady=(5,0))
 
         control_frame = ttk.LabelFrame(left_bottom_container, text="步骤2: 开始生成", padding=10)
         control_frame.pack(fill=tk.X)
