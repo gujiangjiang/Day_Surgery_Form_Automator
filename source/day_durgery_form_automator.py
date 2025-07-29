@@ -2,13 +2,13 @@
 """
 日间手术随访表生成系统 (功能增强版)
 
-版本 V2.8 更新内容:
-- [最终修正] 引入了更强大的数据标准化函数，可以处理包括“不换行空格”(\xa0)在内的多种隐藏字符，从根本上解决因数据不干净导致的匹配失败问题。
-- [诊断增强] 增加了更详细的日志记录。当匹配失败时，会输出具体用于匹配的“姓名”和“住院号”，便于追踪问题。
+版本 V2.9 更新内容:
+- [根本性修正] 重写了读取“手术查询文件”的逻辑，增加了智能标题行检测功能。现在程序可以自动找到正确的列标题，解决了因文件顶部存在大标题而导致无法识别列的问题。
+- 统一了两个Excel文件的读取和预处理逻辑，增强了程序的健壮性。
 
-版本 V2.7 更新内容:
-- [重要修正] 增强了床号匹配的稳定性，解决了因住院号格式(如'0123' vs '123')或空格等数据不一致导致的匹配失败问题。
-- 优化了匹配时的日志提示信息。
+版本 V2.8 更新内容:
+- [修正] 引入了更强大的数据标准化函数，可以处理包括“不换行空格”(\xa0)在内的多种隐藏字符。
+- [诊断增强] 增加了更详细的日志记录。
 
 作者：顾江江 (由AI优化和修复)
 """
@@ -37,7 +37,7 @@ except ImportError:
 
 # ======================== 全局配置 ========================
 CONFIG = {
-    "app_title": "日间手术随访表生成系统 V2.8",
+    "app_title": "日间手术随访表生成系统 V2.9",
     "day_surgery_max_days": 2,
     "column_mapping": {
         "name": "姓名", "department": "出院科室", "hospital_id": "住院号",
@@ -73,12 +73,6 @@ def get_day_after_discharge(discharge_date_str, days=7):
     except (ValueError, TypeError): return ""
 
 def normalize_text(text):
-    """
-    [V2.8 核心修正] 强力标准化文本函数。
-    - 转换为字符串
-    - 替换多种空格（包括不换行空格 \xa0）
-    - 去除首尾的常规空格
-    """
     if pd.isna(text):
         return ""
     return str(text).replace('\xa0', ' ').strip()
@@ -142,15 +136,30 @@ class DocumentGenerator:
     def prepare_bed_number_lookup(self):
         self.log("正在读取手术查询文件以获取床号信息...")
         try:
-            df_surgery = pd.read_excel(self.surgery_query_path, dtype=str)
-            df_surgery.columns = [str(col).strip() for col in df_surgery.columns]
+            # [V2.9 核心修正] 引入智能标题行检测逻辑
             required_cols = ["住院号", "姓名", "床号"]
-            if not all(col in df_surgery.columns for col in required_cols):
-                self.log(f"警告：手术查询文件中缺少必要的列（需要包含：{', '.join(required_cols)}）。将无法补充床号。", "warning")
+            df_surgery_full = pd.read_excel(self.surgery_query_path, header=None, dtype=str)
+            
+            header_row_index = -1
+            for i, row in df_surgery_full.iterrows():
+                # 清理行内容，以便进行比对
+                row_values = {str(v).strip() for v in row.dropna()}
+                if set(required_cols).issubset(row_values):
+                    header_row_index = i
+                    self.log(f"在手术查询文件中自动检测到标题行位于第 {i+1} 行。")
+                    break
+            
+            if header_row_index == -1:
+                self.log(f"警告：在手术查询文件中未能自动找到包含所有必需列({', '.join(required_cols)})的标题行。将无法补充床号。", "warning")
+                messagebox.showwarning("列缺失", f"手术查询文件中缺少必要的列（{', '.join(required_cols)}）或无法自动定位标题行。")
                 return
+
+            # 使用检测到的标题行重新读取数据
+            df_surgery = pd.read_excel(self.surgery_query_path, header=header_row_index, dtype=str)
+            df_surgery.columns = [str(col).strip() for col in df_surgery.columns]
+            
             df_surgery.dropna(subset=required_cols, inplace=True)
             for _, row in df_surgery.iterrows():
-                # [V2.8 修正] 使用强力标准化函数处理数据
                 name = normalize_text(row.get("姓名"))
                 h_id_text = normalize_text(row.get("住院号"))
                 h_id = h_id_text.lstrip('0') if h_id_text != '0' else '0'
@@ -172,6 +181,7 @@ class DocumentGenerator:
             for i, row in df_full.iterrows():
                 if required_excel_cols.issubset(set(str(v).strip() for v in row.dropna())):
                     header_row_index = i
+                    self.log(f"在出院患者列表中自动检测到标题行位于第 {i+1} 行。")
                     break
             if header_row_index == -1:
                 self.log("自动检测标题行失败，请求用户手动输入...", "error")
@@ -203,7 +213,6 @@ class DocumentGenerator:
             if original_bed_number:
                 return original_bed_number
             
-            # [V2.8 修正] 使用与创建字典时完全相同的标准化方法进行查找
             name_raw = row.get('name', "")
             h_id_raw = row.get('hospital_id', "")
             
@@ -217,7 +226,6 @@ class DocumentGenerator:
             if found_bed_number:
                 self.log(f"为患者 '{name_raw}' (住院号: {h_id_raw}) 成功匹配到床号: {found_bed_number}", "info")
             else:
-                # [V2.8 诊断增强] 增加详细的失败日志
                 self.log(f"患者 '{name_raw}' (住院号: {h_id_raw}) 匹配失败。程序尝试使用的标准化键为: ('{h_id}', '{name}')", "warning")
             
             return found_bed_number
