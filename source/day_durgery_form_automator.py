@@ -2,13 +2,13 @@
 """
 日间手术随访表生成系统 (功能增强版)
 
-版本 V3.4 更新内容:
-- [UI终版修正] 移除所有手动DPI缩放逻辑，改为依赖操作系统原生渲染，从根本上解决在不同分辨率屏幕上的显示问题。
-- [布局终版修正] 固定了更紧凑的初始窗口大小(1100x700)，并调整左右分栏权重为3:1，使操作区更突出。
+版本 V3.5 更新内容:
+- [布局终版] 严格按照用户要求，将窗口固定为800x600且不可调整大小。
+- [布局终版] 精确控制左右分栏初始宽度，确保左侧操作区为主体，右侧日志区为辅。
+- [显示终版] 移除所有不稳定的DPI适配逻辑，确保在所有屏幕上显示效果一致。
 
-版本 V3.3 更新内容:
-- [DPI适配] 尝试使用动态缩放功能。 (此方案已在V3.4中被取代)
-- [布局修正] 将主标题移至顶层框架，确保其在程序窗口内全局居中显示。
+版本 V3.4 更新内容:
+- [UI修正] 尝试使用原生渲染和固定大小解决显示问题。(此方案已在V3.5中被完全重构)
 
 作者：顾江江 (由AI优化和修复)
 """
@@ -37,7 +37,7 @@ except ImportError:
 
 # ======================== 全局配置 ========================
 CONFIG = {
-    "app_title": "日间手术随访表生成系统 V3.4",
+    "app_title": "日间手术随访表生成系统 V3.5",
     "day_surgery_max_days": 2,
     "column_mapping": {
         "name": "姓名", "department": "出院科室", "hospital_id": "住院号",
@@ -301,7 +301,6 @@ class App:
         self.create_widgets()
 
     def setup_fonts(self):
-        """V3.4: 使用固定的字体大小，不再手动缩放"""
         self.font_normal = ("微软雅黑", 9)
         self.font_bold = ("微软雅黑", 10, "bold")
         self.font_title = ("微软雅黑", 20, "bold")
@@ -310,11 +309,10 @@ class App:
         self.font_disclaimer = ("微软雅黑", 10)
 
     def setup_window(self):
-        """V3.4: 设置固定的初始大小和最小尺寸"""
+        """V3.5: 严格按照用户要求设置固定的初始大小和不可调整属性"""
         self.root.title(CONFIG['app_title'])
-        self.root.geometry("1100x700") # 提供一个合理的初始大小
-        self.root.minsize(900, 550)    # 设置一个合理的最小尺寸
-        self.root.resizable(True, True)
+        self.root.geometry("800x600") 
+        self.root.resizable(False, False)
 
     def create_widgets(self):
         style = ttk.Style(self.root)
@@ -339,21 +337,26 @@ class App:
         tk.Label(top_title_frame, text="丹阳市人民医院", font=self.font_subtitle, fg="#0066cc", bg=default_bg).pack()
         tk.Label(top_title_frame, text="日间手术随访表生成系统", font=self.font_title, bg=default_bg).pack()
 
-        # 使用PanedWindow实现可拖拽的左右布局
-        main_pane = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
-        main_pane.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 5))
+        # V3.5: 使用Frame和pack代替PanedWindow，以实现更精确的固定布局
+        main_frame = ttk.Frame(self.root, padding=(10, 0, 10, 5))
+        main_frame.pack(fill=tk.BOTH, expand=True)
 
-        # 左侧控制面板
-        left_panel = ttk.Frame(main_pane, padding="10")
-        main_pane.add(left_panel, weight=3) # V3.4: 左侧权重增大为3
+        # 左侧控制面板 (固定宽度)
+        left_panel = ttk.Frame(main_frame)
+        left_panel.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 5))
 
-        # 右侧日志面板
-        right_panel = ttk.Frame(main_pane, padding="10")
-        main_pane.add(right_panel, weight=1) # V3.4: 右侧权重为1
+        # 右侧日志面板 (填充剩余空间)
+        right_panel = ttk.Frame(main_frame)
+        right_panel.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
 
         # --- 将控件填充到左侧面板 ---
-        file_frame = ttk.LabelFrame(left_panel, text="步骤1: 选择文件和路径", padding="10")
-        file_frame.pack(fill=tk.X, pady=5)
+        # 通过一个外层Frame来控制左侧面板的整体宽度
+        left_content_frame = ttk.Frame(left_panel, width=520) # 精确控制宽度
+        left_content_frame.pack(fill=tk.BOTH, expand=True)
+        left_content_frame.pack_propagate(False) # 防止内部控件撑开Frame
+
+        file_frame = ttk.LabelFrame(left_content_frame, text="步骤1: 选择文件和路径", padding="10")
+        file_frame.pack(fill=tk.X, pady=5, padx=5)
         
         self.excel_path_var = tk.StringVar()
         self.template_path_var = tk.StringVar()
@@ -368,15 +371,15 @@ class App:
         self.surgery_listbox.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0,5))
         
         surgery_buttons_frame = ttk.Frame(surgery_frame)
-        surgery_buttons_frame.pack(side=tk.LEFT, fill=tk.Y)
+        surgery_buttons_frame.pack(side=tk.LEFT, fill=tk.Y, anchor='n')
         ttk.Button(surgery_buttons_frame, text="添加文件", command=self.select_surgery_query_files).pack(fill=tk.X, pady=2)
         ttk.Button(surgery_buttons_frame, text="清空列表", command=self.clear_surgery_query_files).pack(fill=tk.X, pady=2)
         
         self.create_file_selector(file_frame, "Word模板:", self.template_path_var, self.select_template_file)
         self.create_file_selector(file_frame, "输出文件夹:", self.output_dir_var, self.select_output_dir)
         
-        control_frame = ttk.LabelFrame(left_panel, text="步骤2: 开始生成", padding="10")
-        control_frame.pack(fill=tk.X, pady=10)
+        control_frame = ttk.LabelFrame(left_content_frame, text="步骤2: 开始生成", padding="10")
+        control_frame.pack(fill=tk.X, pady=10, padx=5)
         style.configure("Accent.TButton", foreground="white", background="#0078D7", font=self.font_button)
         self.start_button = ttk.Button(control_frame, text="开始生成", command=self.start_generation, style="Accent.TButton")
         self.start_button.pack(pady=5, ipady=5, ipadx=20)
@@ -388,7 +391,8 @@ class App:
         self.progress_bar = ttk.Progressbar(progress_frame, orient='horizontal', mode='determinate')
         self.progress_bar.pack(fill=tk.X, pady=(0, 5))
         
-        self.log_text = scrolledtext.ScrolledText(progress_frame, height=10, state='disabled', font=self.font_normal)
+        # V3.5: 减小日志框的高度
+        self.log_text = scrolledtext.ScrolledText(progress_frame, height=5, state='disabled', font=self.font_normal)
         self.log_text.pack(fill=tk.BOTH, expand=True)
         for tag, config in self.log_text_tags.items():
             self.log_text.tag_config(tag, **config)
@@ -464,7 +468,6 @@ class App:
 # ======================== 主程序入口 ========================
 if __name__ == "__main__":
     try:
-        # V3.4: 仍然保留此调用，它在Windows上是无害且推荐的，能让Tkinter更好地与系统交互。
         import ctypes
         ctypes.windll.shcore.SetProcessDpiAwareness(1)
     except Exception:
