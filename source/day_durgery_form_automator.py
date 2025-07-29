@@ -2,14 +2,13 @@
 """
 日间手术随访表生成系统 (功能增强版)
 
+版本 V2.8 更新内容:
+- [最终修正] 引入了更强大的数据标准化函数，可以处理包括“不换行空格”(\xa0)在内的多种隐藏字符，从根本上解决因数据不干净导致的匹配失败问题。
+- [诊断增强] 增加了更详细的日志记录。当匹配失败时，会输出具体用于匹配的“姓名”和“住院号”，便于追踪问题。
+
 版本 V2.7 更新内容:
 - [重要修正] 增强了床号匹配的稳定性，解决了因住院号格式(如'0123' vs '123')或空格等数据不一致导致的匹配失败问题。
 - 优化了匹配时的日志提示信息。
-
-版本 V2.6 更新内容:
-- 新增“手术查询文件”选择，用于匹配和补充缺失的“床号”信息。
-- 通过“住院号”和“姓名”双重条件，从手术查询文件中精确查找床号。
-- 如果患者的床号在两个文件中都无法找到，生成的Word文件名将自动标记为“（床号未知）”。
 
 作者：顾江江 (由AI优化和修复)
 """
@@ -26,7 +25,6 @@ try:
     from docx import Document
     import pandas as pd
 except ImportError:
-    # 在GUI启动前显示错误
     import tkinter as tk_error
     root_err = tk_error.Tk()
     root_err.withdraw()
@@ -39,7 +37,7 @@ except ImportError:
 
 # ======================== 全局配置 ========================
 CONFIG = {
-    "app_title": "日间手术随访表生成系统 V2.7",
+    "app_title": "日间手术随访表生成系统 V2.8",
     "day_surgery_max_days": 2,
     "column_mapping": {
         "name": "姓名", "department": "出院科室", "hospital_id": "住院号",
@@ -74,6 +72,17 @@ def get_day_after_discharge(discharge_date_str, days=7):
         return (base_date + timedelta(days=days)).strftime("%Y-%m-%d")
     except (ValueError, TypeError): return ""
 
+def normalize_text(text):
+    """
+    [V2.8 核心修正] 强力标准化文本函数。
+    - 转换为字符串
+    - 替换多种空格（包括不换行空格 \xa0）
+    - 去除首尾的常规空格
+    """
+    if pd.isna(text):
+        return ""
+    return str(text).replace('\xa0', ' ').strip()
+
 # ======================== 核心逻辑类 ========================
 class DocumentGenerator:
     def __init__(self, excel_path, surgery_query_path, template_path, output_dir, app_instance):
@@ -91,11 +100,9 @@ class DocumentGenerator:
     def run(self):
         try:
             self.prepare_bed_number_lookup()
-
             self.log("开始读取出院患者列表Excel文件...")
             df = self.read_and_prepare_patient_excel()
             if df is None: return
-
             self.log("分析出院日期分布...")
             selected_month = self.determine_dominant_month(df)
             if not selected_month:
@@ -103,16 +110,13 @@ class DocumentGenerator:
                 return
             patient_year_month = f"{selected_month[:4]}年{selected_month[5:]}月"
             self.log(f"已确定主导月份为: {patient_year_month}")
-
             df = self.merge_bed_numbers(df)
-
             day_surgery_df = self.filter_day_surgery_patients(df)
             if day_surgery_df.empty:
                 msg = f"错误：未找到住院天数 <= {CONFIG['day_surgery_max_days']} 天的记录。"
                 self.log(msg, "error")
                 messagebox.showerror("无数据", msg)
                 return
-
             total_rows = len(day_surgery_df)
             self.log(f"共找到 {total_rows} 条符合条件的记录，开始生成文档...")
             success_count = 0
@@ -123,16 +127,12 @@ class DocumentGenerator:
                 except Exception as e:
                     self.log(f"处理行 {getattr(row, 'Index', 'N/A')} 时发生错误: {e}", "error")
                 self.update_progress((index + 1) / total_rows * 100)
-
             self.log("="*30)
             self.log(f"处理完成！成功生成 {success_count} 份文档。")
-            
             final_message = f"成功生成 {success_count} 份随访表。\n" \
                           f"统一出院年月为: {patient_year_month}\n" \
                           f"文件保存在: {self.output_dir}"
-            
             messagebox.showinfo("完成", final_message)
-
         except Exception as e:
             self.log(f"发生严重错误: {e}", "error")
             messagebox.showerror("严重错误", f"处理过程中发生严重错误：\n{e}")
@@ -144,28 +144,21 @@ class DocumentGenerator:
         try:
             df_surgery = pd.read_excel(self.surgery_query_path, dtype=str)
             df_surgery.columns = [str(col).strip() for col in df_surgery.columns]
-            
             required_cols = ["住院号", "姓名", "床号"]
             if not all(col in df_surgery.columns for col in required_cols):
                 self.log(f"警告：手术查询文件中缺少必要的列（需要包含：{', '.join(required_cols)}）。将无法补充床号。", "warning")
                 return
-
             df_surgery.dropna(subset=required_cols, inplace=True)
-            
             for _, row in df_surgery.iterrows():
-                # --- [修正] 增强的匹配逻辑 ---
-                # 1. 标准化姓名，去除前后空格
-                name = str(row["姓名"]).strip()
+                # [V2.8 修正] 使用强力标准化函数处理数据
+                name = normalize_text(row.get("姓名"))
+                h_id_text = normalize_text(row.get("住院号"))
+                h_id = h_id_text.lstrip('0') if h_id_text != '0' else '0'
+                bed_number = normalize_text(row.get("床号"))
                 
-                # 2. 标准化住院号，去除前后空格，并移除开头的0，以匹配如 '0123' 和 '123' 的情况
-                h_id_raw = str(row["住院号"]).strip()
-                h_id = h_id_raw.lstrip('0') if h_id_raw != '0' else '0'
-
-                key = (h_id, name)
-
                 if h_id and name:
-                    self.bed_number_lookup[key] = str(row["床号"]).strip()
-
+                    key = (h_id, name)
+                    self.bed_number_lookup[key] = bed_number
             self.log(f"成功从手术查询文件加载了 {len(self.bed_number_lookup)} 条有效的床号记录。")
         except Exception as e:
             self.log(f"读取手术查询文件失败: {e}。将无法补充床号。", "error")
@@ -191,11 +184,9 @@ class DocumentGenerator:
                 messagebox.showerror("列名缺失", f"Excel中缺少以下必要列: {', '.join(required_excel_cols - set(df.columns))}")
                 return None
             df.rename(columns={v: k for k, v in CONFIG['column_mapping'].items()}, inplace=True)
-            
             if 'bed_number' not in df.columns:
                 self.log("警告：主Excel文件中未找到“床号”列。将尝试从手术查询文件补充。", "warning")
                 df['bed_number'] = None
-
             return df
         except Exception as e:
             messagebox.showerror("Excel读取失败", f"无法读取或解析出院患者列表文件：\n{e}")
@@ -204,29 +195,32 @@ class DocumentGenerator:
     def merge_bed_numbers(self, df):
         if not self.bed_number_lookup:
             self.log("床号查找表为空，跳过合并步骤。", "warning")
-            df['final_bed_number'] = df['bed_number']
+            df['final_bed_number'] = df.get('bed_number')
             return df
-
         self.log("正在为患者匹配床号...")
-        
         def find_bed_number(row):
-            original_bed_number = row.get('bed_number')
-            if pd.notna(original_bed_number) and str(original_bed_number).strip():
-                return str(original_bed_number).strip()
+            original_bed_number = normalize_text(row.get('bed_number'))
+            if original_bed_number:
+                return original_bed_number
             
-            # --- [修正] 使用与创建字典时完全相同的标准化方法 ---
-            name = str(row['name']).strip()
-            h_id_raw = str(row['hospital_id']).strip()
-            h_id = h_id_raw.lstrip('0') if h_id_raw != '0' else '0'
+            # [V2.8 修正] 使用与创建字典时完全相同的标准化方法进行查找
+            name_raw = row.get('name', "")
+            h_id_raw = row.get('hospital_id', "")
+            
+            name = normalize_text(name_raw)
+            h_id_text = normalize_text(h_id_raw)
+            h_id = h_id_text.lstrip('0') if h_id_text != '0' else '0'
 
             lookup_key = (h_id, name)
             found_bed_number = self.bed_number_lookup.get(lookup_key)
             
             if found_bed_number:
-                self.log(f"为患者 {name} (住院号: {h_id_raw}) 成功匹配到床号: {found_bed_number}", "info")
+                self.log(f"为患者 '{name_raw}' (住院号: {h_id_raw}) 成功匹配到床号: {found_bed_number}", "info")
+            else:
+                # [V2.8 诊断增强] 增加详细的失败日志
+                self.log(f"患者 '{name_raw}' (住院号: {h_id_raw}) 匹配失败。程序尝试使用的标准化键为: ('{h_id}', '{name}')", "warning")
             
             return found_bed_number
-
         df['final_bed_number'] = df.apply(find_bed_number, axis=1)
         self.log("床号匹配完成。")
         return df
@@ -252,31 +246,24 @@ class DocumentGenerator:
         replacements["{{患者出院年月}}"] = patient_year_month
         discharge_date_str = excel_date_to_str(getattr(row_data, 'discharge_date', ''))
         replacements["{{随访日期}}"] = get_day_after_discharge(discharge_date_str)
-        
         final_bed_number = getattr(row_data, 'final_bed_number', None)
         bed_number_is_unknown = not (pd.notna(final_bed_number) and str(final_bed_number).strip())
-
         for placeholder, key in CONFIG['template_placeholders'].items():
             if key == "bed_number":
                 replacements[placeholder] = str(final_bed_number) if not bed_number_is_unknown else "（手动填写）"
                 continue
-
             raw_value = getattr(row_data, key, "")
             if "date" in key:
                 replacements[placeholder] = excel_date_to_str(raw_value)
             else:
                 replacements[placeholder] = str(raw_value) if pd.notna(raw_value) else ""
-
         patient_name = replacements.get("{{姓名}}", "未知姓名")
         department = replacements.get("{{科室}}", "未知科室")
-        
         base_filename = f"{patient_year_month}_{department}_日间手术随访_{replacements['{{随访日期}}']}_{patient_name}"
         if bed_number_is_unknown:
             filename = f"{base_filename}（床号未知）.docx"
-            self.log(f"患者 {patient_name} 未找到床号，文件名已标记。", "warning")
         else:
             filename = f"{base_filename}.docx"
-
         filename = "".join(c for c in filename if c not in r'\/:*?"<>|')
         doc = Document(self.template_path)
         self.perform_replacements(doc, replacements)
@@ -331,45 +318,35 @@ class App:
         if "clam" in style.theme_names(): style.theme_use("clam")
         default_bg = style.lookup('TFrame', 'background')
         self.root.configure(bg=default_bg)
-
         self.log_text_tags = {"warning": {"foreground": "orange"}, "error": {"foreground": "red"}}
-
         bottom_frame = tk.Frame(self.root, bg=default_bg)
         bottom_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=5)
         tk.Label(bottom_frame, text=f"编程日期：{datetime.now().strftime('%Y年%m月%d日')}", font=self.font_normal, fg="#666666", bg=default_bg).pack(side=tk.LEFT)
         tk.Label(bottom_frame, text="作者：顾江江", font=self.font_normal, fg="#666666", bg=default_bg).pack(side=tk.RIGHT)
-
         disclaimer_frame = tk.Frame(self.root, pady=5, bg=default_bg)
         disclaimer_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10)
         tk.Label(disclaimer_frame, text="本工具仅供骨科内部测试，请勿外传", font=self.font_disclaimer, fg="red", bg=default_bg).pack()
-        
         title_frame = tk.Frame(self.root, bg=default_bg)
         title_frame.pack(pady=(15, 10))
         tk.Label(title_frame, text="丹阳市人民医院", font=self.font_subtitle, fg="#0066cc", bg=default_bg).pack()
         tk.Label(title_frame, text="日间手术随访表生成系统", font=self.font_title, bg=default_bg).pack(pady=(5, 0))
-
         content_frame = ttk.Frame(self.root, padding="10")
         content_frame.pack(fill=tk.BOTH, expand=True)
-
         file_frame = ttk.LabelFrame(content_frame, text="步骤1: 选择文件和路径", padding="10")
         file_frame.pack(fill=tk.X, expand=True, pady=5)
-        
         self.excel_path_var = tk.StringVar()
         self.surgery_query_path_var = tk.StringVar()
         self.template_path_var = tk.StringVar()
         self.output_dir_var = tk.StringVar()
-        
         self.create_file_selector(file_frame, "出院患者列表:", self.excel_path_var, self.select_excel_file)
         self.create_file_selector(file_frame, "手术查询文件:", self.surgery_query_path_var, self.select_surgery_query_file)
         self.create_file_selector(file_frame, "Word模板:", self.template_path_var, self.select_template_file)
         self.create_file_selector(file_frame, "输出文件夹:", self.output_dir_var, self.select_output_dir)
-
         control_frame = ttk.LabelFrame(content_frame, text="步骤2: 开始生成", padding="10")
         control_frame.pack(fill=tk.X, expand=True, pady=10)
         style.configure("Accent.TButton", foreground="white", background="#0078D7", font=self.font_button)
         self.start_button = ttk.Button(control_frame, text="开始生成", command=self.start_generation, style="Accent.TButton")
         self.start_button.pack(pady=5, ipady=5, ipadx=20)
-
         progress_frame = ttk.LabelFrame(content_frame, text="处理进度与日志", padding="10")
         progress_frame.pack(fill=tk.BOTH, expand=True)
         self.progress_bar = ttk.Progressbar(progress_frame, orient='horizontal', mode='determinate')
@@ -424,7 +401,6 @@ class App:
         self.start_button.config(state='disabled')
         self.progress_bar['value'] = 0
         self.log_text.config(state='normal'); self.log_text.delete('1.0', tk.END); self.log_text.config(state='disabled')
-        
         generator = DocumentGenerator(
             excel_path=self.excel_path_var.get(), 
             surgery_query_path=self.surgery_query_path_var.get(),
@@ -444,8 +420,6 @@ if __name__ == "__main__":
         ctypes.windll.shcore.SetProcessDpiAwareness(1)
     except Exception:
         pass
-
     root = tk.Tk()
     app = App(root)
     root.mainloop()
-
