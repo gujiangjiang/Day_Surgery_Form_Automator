@@ -2,13 +2,12 @@
 """
 日间手术随访表生成系统 (功能增强版)
 
+版本 V3.1 更新内容:
+- [UI优化] 调整程序主窗口为左右布局，左侧为控制面板，右侧为日志和进度显示，更美观实用。
+
 版本 V3.0 更新内容:
 - [功能增强] 支持同时选择多个“手术查询文件”，程序会自动合并所有文件中的床号信息进行匹配。
 - [界面更新] 使用列表框来管理多个手术查询文件，支持添加和清空操作。
-- 优化了日志输出，清晰展示多文件的读取过程。
-
-版本 V2.9 更新内容:
-- [根本性修正] 重写了读取“手术查询文件”的逻辑，增加了智能标题行检测功能。
 
 作者：顾江江 (由AI优化和修复)
 """
@@ -37,7 +36,7 @@ except ImportError:
 
 # ======================== 全局配置 ========================
 CONFIG = {
-    "app_title": "日间手术随访表生成系统 V3.0",
+    "app_title": "日间手术随访表生成系统 V3.1",
     "day_surgery_max_days": 2,
     "column_mapping": {
         "name": "姓名", "department": "出院科室", "hospital_id": "住院号",
@@ -81,7 +80,7 @@ def normalize_text(text):
 class DocumentGenerator:
     def __init__(self, excel_path, surgery_query_paths, template_path, output_dir, app_instance):
         self.excel_path = excel_path
-        self.surgery_query_paths = surgery_query_paths # V3.0: 接收一个路径列表
+        self.surgery_query_paths = surgery_query_paths
         self.template_path = template_path
         self.output_dir = output_dir
         self.app = app_instance
@@ -138,14 +137,11 @@ class DocumentGenerator:
         if not self.surgery_query_paths:
             self.log("未选择任何手术查询文件，跳过床号补充步骤。", "warning")
             return
-
-        # V3.0: 遍历所有选择的文件
         for file_path in self.surgery_query_paths:
             self.log(f"正在读取文件: {os.path.basename(file_path)}", "info")
             try:
                 required_cols = ["住院号", "姓名", "床号"]
                 df_surgery_full = pd.read_excel(file_path, header=None, dtype=str)
-                
                 header_row_index = -1
                 for i, row in df_surgery_full.iterrows():
                     row_values = {str(v).strip() for v in row.dropna()}
@@ -153,27 +149,22 @@ class DocumentGenerator:
                         header_row_index = i
                         self.log(f"在文件 '{os.path.basename(file_path)}' 中自动检测到标题行位于第 {i+1} 行。")
                         break
-                
                 if header_row_index == -1:
                     self.log(f"警告：在文件 '{os.path.basename(file_path)}' 中未能找到必需列({', '.join(required_cols)})。已跳过此文件。", "warning")
                     continue
-
                 df_surgery = pd.read_excel(file_path, header=header_row_index, dtype=str)
                 df_surgery.columns = [str(col).strip() for col in df_surgery.columns]
-                
                 df_surgery.dropna(subset=required_cols, inplace=True)
                 for _, row in df_surgery.iterrows():
                     name = normalize_text(row.get("姓名"))
                     h_id_text = normalize_text(row.get("住院号"))
                     h_id = h_id_text.lstrip('0') if h_id_text != '0' else '0'
                     bed_number = normalize_text(row.get("床号"))
-                    
                     if h_id and name:
                         key = (h_id, name)
                         self.bed_number_lookup[key] = bed_number
             except Exception as e:
                 self.log(f"读取文件 '{os.path.basename(file_path)}' 时出错: {e}。已跳过此文件。", "error")
-        
         self.log(f"所有手术查询文件处理完毕，共加载了 {len(self.bed_number_lookup)} 条有效的床号记录。")
 
     def read_and_prepare_patient_excel(self):
@@ -302,7 +293,7 @@ class DocumentGenerator:
 class App:
     def __init__(self, root):
         self.root = root
-        self.surgery_query_files = [] # V3.0: 用于存储多个文件路径
+        self.surgery_query_files = []
         self.setup_fonts()
         self.setup_window()
         self.create_widgets()
@@ -317,8 +308,10 @@ class App:
 
     def setup_window(self):
         self.root.title(CONFIG['app_title'])
-        self.root.geometry("1000x1050") # 稍微增加高度以容纳新控件
-        self.root.resizable(False, False)
+        # V3.1: 调整窗口大小以适应新布局
+        self.root.geometry("1200x800")
+        self.root.minsize(1000, 600) # 设置最小尺寸
+        self.root.resizable(True, True)
 
     def create_widgets(self):
         style = ttk.Style(self.root)
@@ -326,23 +319,40 @@ class App:
         default_bg = style.lookup('TFrame', 'background')
         self.root.configure(bg=default_bg)
         self.log_text_tags = {"warning": {"foreground": "orange"}, "error": {"foreground": "red"}}
+
+        # --- V3.1: 布局调整 ---
+
+        # 将底部信息栏先打包，使其固定在底部
         bottom_frame = tk.Frame(self.root, bg=default_bg)
         bottom_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=5)
         tk.Label(bottom_frame, text=f"编程日期：{datetime.now().strftime('%Y年%m月%d日')}", font=self.font_normal, fg="#666666", bg=default_bg).pack(side=tk.LEFT)
         tk.Label(bottom_frame, text="作者：顾江江", font=self.font_normal, fg="#666666", bg=default_bg).pack(side=tk.RIGHT)
+        
         disclaimer_frame = tk.Frame(self.root, pady=5, bg=default_bg)
         disclaimer_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10)
         tk.Label(disclaimer_frame, text="本工具仅供骨科内部测试，请勿外传", font=self.font_disclaimer, fg="red", bg=default_bg).pack()
-        title_frame = tk.Frame(self.root, bg=default_bg)
-        title_frame.pack(pady=(15, 10))
+
+        # 创建一个主框架来容纳左右两个面板
+        main_frame = ttk.Frame(self.root)
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+
+        # 左侧控制面板
+        left_panel = ttk.Frame(main_frame, width=480)
+        left_panel.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
+        left_panel.pack_propagate(False) # 防止面板收缩
+
+        # 右侧日志面板
+        right_panel = ttk.Frame(main_frame)
+        right_panel.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+
+        # --- 将控件填充到左侧面板 ---
+        title_frame = tk.Frame(left_panel, bg=default_bg)
+        title_frame.pack(pady=(5, 10), fill=tk.X)
         tk.Label(title_frame, text="丹阳市人民医院", font=self.font_subtitle, fg="#0066cc", bg=default_bg).pack()
         tk.Label(title_frame, text="日间手术随访表生成系统", font=self.font_title, bg=default_bg).pack(pady=(5, 0))
-        content_frame = ttk.Frame(self.root, padding="10")
-        content_frame.pack(fill=tk.BOTH, expand=True)
-        
-        # --- V3.0: 界面更新 ---
-        file_frame = ttk.LabelFrame(content_frame, text="步骤1: 选择文件和路径", padding="10")
-        file_frame.pack(fill=tk.X, expand=True, pady=5)
+
+        file_frame = ttk.LabelFrame(left_panel, text="步骤1: 选择文件和路径", padding="10")
+        file_frame.pack(fill=tk.X, pady=5)
         
         self.excel_path_var = tk.StringVar()
         self.template_path_var = tk.StringVar()
@@ -350,11 +360,10 @@ class App:
         
         self.create_file_selector(file_frame, "出院患者列表:", self.excel_path_var, self.select_excel_file)
         
-        # 手术查询文件多选区域
         surgery_frame = ttk.LabelFrame(file_frame, text="手术查询文件 (可多选)", padding="5")
         surgery_frame.pack(fill=tk.X, expand=True, pady=(5,0))
         
-        self.surgery_listbox = tk.Listbox(surgery_frame, height=4, font=self.font_normal)
+        self.surgery_listbox = tk.Listbox(surgery_frame, height=5, font=self.font_normal)
         self.surgery_listbox.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0,5))
         
         surgery_buttons_frame = ttk.Frame(surgery_frame)
@@ -365,15 +374,19 @@ class App:
         self.create_file_selector(file_frame, "Word模板:", self.template_path_var, self.select_template_file)
         self.create_file_selector(file_frame, "输出文件夹:", self.output_dir_var, self.select_output_dir)
         
-        control_frame = ttk.LabelFrame(content_frame, text="步骤2: 开始生成", padding="10")
-        control_frame.pack(fill=tk.X, expand=True, pady=10)
+        control_frame = ttk.LabelFrame(left_panel, text="步骤2: 开始生成", padding="10")
+        control_frame.pack(fill=tk.X, pady=10)
         style.configure("Accent.TButton", foreground="white", background="#0078D7", font=self.font_button)
         self.start_button = ttk.Button(control_frame, text="开始生成", command=self.start_generation, style="Accent.TButton")
         self.start_button.pack(pady=5, ipady=5, ipadx=20)
-        progress_frame = ttk.LabelFrame(content_frame, text="处理进度与日志", padding="10")
+
+        # --- 将控件填充到右侧面板 ---
+        progress_frame = ttk.LabelFrame(right_panel, text="处理进度与日志", padding="10")
         progress_frame.pack(fill=tk.BOTH, expand=True)
+        
         self.progress_bar = ttk.Progressbar(progress_frame, orient='horizontal', mode='determinate')
-        self.progress_bar.pack(fill=tk.X, expand=True, pady=5)
+        self.progress_bar.pack(fill=tk.X, pady=(0, 5))
+        
         self.log_text = scrolledtext.ScrolledText(progress_frame, height=10, state='disabled', font=self.font_normal)
         self.log_text.pack(fill=tk.BOTH, expand=True)
         for tag, config in self.log_text_tags.items():
@@ -390,7 +403,6 @@ class App:
         path = filedialog.askopenfilename(title="选择出院患者记录单", filetypes=[("Excel文件", "*.xlsx *.xls")])
         if path: self.excel_path_var.set(path)
 
-    # V3.0: 新增方法
     def select_surgery_query_files(self):
         paths = filedialog.askopenfilenames(title="选择一个或多个手术查询文件", filetypes=[("Excel文件", "*.xlsx *.xls")])
         if paths:
@@ -399,7 +411,6 @@ class App:
                     self.surgery_query_files.append(path)
                     self.surgery_listbox.insert(tk.END, os.path.basename(path))
 
-    # V3.0: 新增方法
     def clear_surgery_query_files(self):
         self.surgery_query_files.clear()
         self.surgery_listbox.delete(0, tk.END)
@@ -428,21 +439,18 @@ class App:
         self.root.after(0, lambda: self.progress_bar.config(value=value))
 
     def start_generation(self):
-        # V3.0: 更新检查逻辑
         if not all([self.excel_path_var.get(), self.template_path_var.get(), self.output_dir_var.get()]):
             messagebox.showwarning("信息不全", "请先选择好“出院患者列表”、“Word模板”和“输出文件夹”。")
             return
-        
         if not self.surgery_query_files:
             if not messagebox.askyesno("确认操作", "您没有选择任何“手术查询文件”。\n程序将无法补充床号，是否继续？"):
                 return
-
         self.start_button.config(state='disabled')
         self.progress_bar['value'] = 0
         self.log_text.config(state='normal'); self.log_text.delete('1.0', tk.END); self.log_text.config(state='disabled')
         generator = DocumentGenerator(
             excel_path=self.excel_path_var.get(), 
-            surgery_query_paths=self.surgery_query_files, # V3.0: 传递文件列表
+            surgery_query_paths=self.surgery_query_files,
             template_path=self.template_path_var.get(), 
             output_dir=self.output_dir_var.get(), 
             app_instance=self
