@@ -2,12 +2,12 @@
 """
 日间手术随访表生成系统 (功能增强版)
 
-版本 V4.3 更新内容:
-- [UI终版] 修正了分栏限制的事件处理逻辑，通过返回"break"中断事件传播，确保拖拽范围限制(320px-520px)严格生效。
+版本 V4.4 更新内容:
+- [UI终版] 微调左右两栏的内边距(padding)，实现两侧功能块边框的完美垂直对齐。
 - [UI终版] 这是结合了所有用户反馈的最终稳定版本。
 
-版本 V4.2 更新内容:
-- [UI修正] 为可拖拽的左右分栏增加了范围限制。(此方案在V4.3中被修正)
+版本 V4.3 更新内容:
+- [UI修正] 修正了分栏限制的事件处理逻辑，确保拖拽范围限制(320px-520px)严格生效。
 
 作者：顾江江 (由AI优化和修复)
 """
@@ -36,7 +36,7 @@ except ImportError:
 
 # ======================== 全局配置 ========================
 CONFIG = {
-    "app_title": "日间手术随访表生成系统 V4.3",
+    "app_title": "日间手术随访表生成系统 V4.4",
     "day_surgery_max_days": 2,
     "column_mapping": {
         "name": "姓名", "department": "出院科室", "hospital_id": "住院号",
@@ -339,27 +339,25 @@ class App:
         main_pane = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
         main_pane.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 5))
 
-        # 左侧控制面板
-        left_panel = ttk.Frame(main_pane, padding=(5, 0, 5, 0))
+        # V4.4: 统一左右面板的垂直padding以对齐边框
+        left_panel = ttk.Frame(main_pane, padding=(5, 5, 5, 5))
         main_pane.add(left_panel)
 
-        # 右侧日志面板
-        right_panel = ttk.Frame(main_pane, padding=(5, 0, 5, 0))
+        right_panel = ttk.Frame(main_pane, padding=(5, 5, 5, 5))
         main_pane.add(right_panel)
 
-        # V4.2: 关键修正 - 绑定<Configure>事件来设置初始分栏位置并添加范围限制
+        # 绑定事件来设置初始分栏位置并添加范围限制
         def set_initial_sash(event):
             main_pane.sashpos(0, 420)
             main_pane.unbind("<Configure>")
         
         def limit_sash_movement(event):
-            # 使用 event.x 获取鼠标当前位置来判断
             if event.x < 320:
                 main_pane.sashpos(0, 320)
-                return "break" # 中断事件，防止默认行为覆盖我们的设置
+                return "break"
             if event.x > 520:
                 main_pane.sashpos(0, 520)
-                return "break" # 中断事件
+                return "break"
 
         main_pane.bind("<Configure>", set_initial_sash)
         main_pane.bind("<B1-Motion>", limit_sash_movement)
@@ -367,7 +365,8 @@ class App:
 
         # --- 将控件填充到左侧面板 ---
         file_frame = ttk.LabelFrame(left_panel, text="步骤1: 选择文件和路径", padding=5)
-        file_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 5))
+        # V4.4: 移除此处的pady，由父容器的padding控制
+        file_frame.pack(fill=tk.BOTH, expand=True) 
         
         self.excel_path_var = tk.StringVar()
         self.template_path_var = tk.StringVar()
@@ -389,7 +388,11 @@ class App:
         self.create_file_selector(file_frame, "Word模板:", self.template_path_var, self.select_template_file)
         self.create_file_selector(file_frame, "输出文件夹:", self.output_dir_var, self.select_output_dir)
         
-        control_frame = ttk.LabelFrame(left_panel, text="步骤2: 开始生成", padding=10)
+        # V4.4: 将第二个LabelFrame也放在一个容器里，以实现对齐
+        left_bottom_container = ttk.Frame(left_panel)
+        left_bottom_container.pack(fill=tk.X, pady=(5,0)) # 5px的间距
+
+        control_frame = ttk.LabelFrame(left_bottom_container, text="步骤2: 开始生成", padding=10)
         control_frame.pack(fill=tk.X)
         style.configure("Accent.TButton", foreground="white", background="#0078D7", font=self.font_button)
         self.start_button = ttk.Button(control_frame, text="开始生成", command=self.start_generation, style="Accent.TButton")
