@@ -2,12 +2,12 @@
 """
 日间手术随访表生成系统 (功能增强版)
 
-版本 V4.0 更新内容:
-- [UI终版] 采用after()机制延迟设置分栏位置，从根本上解决了程序启动时左侧面板被压缩的顽固问题。
+版本 V4.1 更新内容:
+- [UI终版] 采用事件绑定机制(<Configure>)来设置分栏初始位置，从根本上解决了程序启动时左侧面板被压缩的顽固问题。
 - [UI终版] 这是结合了所有用户反馈的最终稳定版本。
 
-版本 V3.9 更新内容:
-- [UI修正] 尝试为可拖拽的左右分栏设置明确的初始位置。(此方案在V4.0中被修正)
+版本 V4.0 更新内容:
+- [UI修正] 尝试采用after()机制延迟设置分栏位置。(此方案在V4.1中被修正)
 
 作者：顾江江 (由AI优化和修复)
 """
@@ -36,7 +36,7 @@ except ImportError:
 
 # ======================== 全局配置 ========================
 CONFIG = {
-    "app_title": "日间手术随访表生成系统 V4.0",
+    "app_title": "日间手术随访表生成系统 V4.1",
     "day_surgery_max_days": 2,
     "column_mapping": {
         "name": "姓名", "department": "出院科室", "hospital_id": "住院号",
@@ -347,10 +347,13 @@ class App:
         right_panel = ttk.Frame(main_pane, padding=(5, 0, 5, 0))
         main_pane.add(right_panel)
 
-        # V4.0: 关键修正 - 使用after()确保sashpos在窗口绘制后执行
-        def set_sash_pos():
+        # V4.1: 关键修正 - 绑定<Configure>事件来设置初始分栏位置
+        def set_initial_sash(event):
+            # 此函数仅在第一次配置时执行一次
             main_pane.sashpos(0, 420)
-        self.root.after(10, set_sash_pos)
+            # 解除绑定，这样用户后续的拖拽操作不会被覆盖
+            main_pane.unbind("<Configure>")
+        main_pane.bind("<Configure>", set_initial_sash)
 
         # --- 将控件填充到左侧面板 ---
         file_frame = ttk.LabelFrame(left_panel, text="步骤1: 选择文件和路径", padding=5)
