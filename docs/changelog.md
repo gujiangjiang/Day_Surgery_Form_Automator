@@ -142,3 +142,7 @@
 #### 版本 V6.1 更新内容:
 - [错误修复] 修正了读取 .xls 文件时因错误指定 'xlrd' 引擎导致的 "unrecognized engine" 崩溃问题。
 - [代码简化] 移除了所有 pl.read_excel 调用中的 engine 参数，完全依赖 Polars 内置的 calamine 引擎自动处理 .xlsx 和 .xls 文件，使代码更简洁。
+
+#### 版本 V6.2 更新内容:
+- [错误修复] 彻底修复了因 `skip_rows` 参数在某些 Polars 版本中不被识别导致的崩溃问题。
+- [逻辑优化] 重写了 `_read_excel_with_header_detection` 函数。新逻辑只读取一次Excel文件，然后在内存中进行切片以提取标题和数据，不再依赖于 `skip_rows` 参数，从而提高了代码的健壮性和效率。
