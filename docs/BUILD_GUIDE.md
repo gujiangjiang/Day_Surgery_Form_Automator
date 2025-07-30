@@ -1,6 +1,6 @@
 # 自动化程序编译与打包指南
 
-本指南旨在为 "日间手术随访表生成系统" 提供清晰的安装、运行及打包说明。
+本指南旨在为 "日间手术随访表生成系统 (Polars版)" 提供清晰的安装、运行及打包说明。
 
 ---
 
@@ -42,14 +42,12 @@
 pip install -r requirements.txt
 ```
 
-> **提示**: `requirements.txt` 文件应包含以下内容:
+> **提示**: `requirements.txt` 文件应包含以下内容，这已是运行程序的最小依赖集合:
 > ```text
-> pandas
-> openpyxl
-> xlrd
+> polars
 > python-docx
+> fastexcel
 > ```
-> `openpyxl` 和 `xlrd` 是 `pandas` 读写新旧版本 Excel 文件所必需的依赖库。
 
 ### 3. 运行程序
 
@@ -87,7 +85,7 @@ pyinstaller --onefile --windowed --icon="app.ico" --name="day_durgery_form_autom
 
 ### 方式二：使用 Nuitka (性能更优)
 
-Nuitka 会将 Python 代码编译成 C++ 代码，然后再编译成可执行文件，通常能提供比 PyInstaller 更好的性能和更小的体积，但配置相对复杂。
+Nuitka 会将 Python 代码编译成 C++ 代码，然后再编译成可执行文件，性能和体积通常优于 PyInstaller。
 
 **1. 安装 Nuitka**
 ```bash
@@ -108,37 +106,35 @@ python -m nuitka `
   --onefile `
   --windows-disable-console `
   --enable-plugin=tk-inter `
-  --include-module=pandas,openpyxl,xlrd,docx `
+  --include-module=polars,docx,fastexcel `
   --onefile-windows-splash-screen-image=splash.png `
   --windows-icon-from-ico=app.ico `
   --mingw64 `
   --output-dir=build `
   --output-filename="day_durgery_form_automator.exe" `
-  --file-version=5.0.1.0 `
-  --product-version=5.0 `
+  --file-version=6.0.1.0 `
+  --product-version=6.0 `
   --company-name="Danyang People's Hospital" `
   --product-name="Day Surgery Form Automator" `
   --copyright="© 2025 gujiangjiang" `
   day_durgery_form_automator.py
 ```
 
-**如果您正在使用传统的命令提示符 (cmd.exe):**
-
-请复制并执行以下命令。注意，换行符是 `^`。
+**命令提示符 (cmd.exe):**
 
 ```batch
 python -m nuitka ^
   --onefile ^
   --windows-disable-console ^
   --enable-plugin=tk-inter ^
-  --include-module=pandas,openpyxl,xlrd,docx ^
+  --include-module=polars,docx,fastexcel ^
   --onefile-windows-splash-screen-image=splash.png ^
   --windows-icon-from-ico=app.ico ^
   --mingw64 ^
   --output-dir=build ^
   --output-filename="day_durgery_form_automator.exe" ^
-  --file-version=5.0.1.0 ^
-  --product-version=5.0 ^
+  --file-version=6.0.1.0 ^
+  --product-version=6.0 ^
   --company-name="Danyang People's Hospital" ^
   --product-name="Day Surgery Form Automator" ^
   --copyright="© 2025 gujiangjiang" ^
@@ -161,3 +157,5 @@ python -m nuitka ^
 * `--file-version`, `--product-version`, `--company-name`, `--product-name`, `--copyright`: 为 `.exe` 文件添加详细的元数据，可在文件属性中查看。
 
 打包成功后，在生成的 `build` 文件夹中即可找到最终的 `.exe` 文件。
+* `--include-module=...`: 强制包含 Nuitka 可能检测不到的库。对于 Polars 版本，我们明确加入 `polars`, `docx`, 和 `fastexcel`。
+* 其他参数如 `--file-version`, `--product-name` 等已更新至最新版本信息。
