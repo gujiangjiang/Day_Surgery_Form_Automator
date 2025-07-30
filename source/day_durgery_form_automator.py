@@ -2,13 +2,13 @@
 """
 日间手术随访表生成系统 (Polars 重构版)
 
+版本 V6.3 (过滤逻辑修正版) 更新内容:
+- [错误修复] 修复了在 prepare_bed_number_lookup 函数中，因使用 pl.all() 结合生成器进行过滤导致的 "invalid input for col" 崩溃问题。
+- [代码优化] 将过滤逻辑修改为使用标准的 `&` 操作符连接多个条件，这是 Polars 中更稳健和通用的做法。
+
 版本 V6.2 (读取逻辑修正版) 更新内容:
 - [错误修复] 彻底修复了因 `skip_rows` 参数在某些 Polars 版本中不被识别导致的崩溃问题。
-- [逻辑优化] 重写了 `_read_excel_with_header_detection` 函数。新逻辑只读取一次Excel文件，然后在内存中进行切片以提取标题和数据，不再依赖于 `skip_rows` 参数，从而提高了代码的健壮性和效率。
-
-版本 V6.1 (引擎修正版) 更新内容:
-- [错误修复] 修正了读取 .xls 文件时因错误指定 'xlrd' 引擎导致的 "unrecognized engine" 崩溃问题。
-- [代码简化] 移除了所有 pl.read_excel 调用中的 engine 参数，完全依赖 Polars 内置的 calamine 引擎自动处理 .xlsx 和 .xls 文件。
+- [逻辑优化] 重写了 `_read_excel_with_header_detection` 函数，改为一次性读取后在内存中切片。
 
 作者：顾江江 (由AI使用 Polars 重构)
 """
@@ -45,7 +45,7 @@ except ImportError:
 
 # ======================== 全局配置 ========================
 CONFIG = {
-    "app_title": "日间手术随访表生成系统 V6.2",
+    "app_title": "日间手术随访表生成系统 V6.3",
     "day_surgery_max_days": 2,
     "follow_up_days": 7,  # 随访发生于出院后的天数
     "unknown_bed_placeholder": "（手动填写）", # Word内容中的床号未知占位符
@@ -239,7 +239,11 @@ class DocumentGenerator:
             # 筛选、清洗并填充查找字典
             df_surgery = df_surgery.select(["住院号", "姓名", "床号"]) \
                                    .drop_nulls() \
-                                   .filter(pl.all(pl.col(c).str.strip_chars() != "" for c in ["住院号", "姓名", "床号"]))
+                                   .filter(
+                                       (pl.col("住院号").str.strip_chars() != "") &
+                                       (pl.col("姓名").str.strip_chars() != "") &
+                                       (pl.col("床号").str.strip_chars() != "")
+                                   )
 
             for row in df_surgery.iter_rows(named=True):
                 name = row["姓名"].strip()

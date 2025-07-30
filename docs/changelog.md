@@ -146,3 +146,7 @@
 #### 版本 V6.2 更新内容:
 - [错误修复] 彻底修复了因 `skip_rows` 参数在某些 Polars 版本中不被识别导致的崩溃问题。
 - [逻辑优化] 重写了 `_read_excel_with_header_detection` 函数。新逻辑只读取一次Excel文件，然后在内存中进行切片以提取标题和数据，不再依赖于 `skip_rows` 参数，从而提高了代码的健壮性和效率。
+
+#### 版本 V6.3 更新内容:
+- [错误修复] 修复了在 prepare_bed_number_lookup 函数中，因使用 pl.all() 结合生成器进行过滤导致的 "invalid input for col" 崩溃问题。
+- [代码优化] 将过滤逻辑修改为使用标准的 `&` 操作符连接多个条件，这是 Polars 中更稳健和通用的做法。
