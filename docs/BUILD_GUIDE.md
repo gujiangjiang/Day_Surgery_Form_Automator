@@ -104,7 +104,7 @@ pip install nuitka
 ```powershell
 python -m nuitka `
   --onefile `
-  --windows-disable-console `
+  --windows-console-mode=disable `
   --enable-plugin=tk-inter `
   --include-module=polars,docx,fastexcel `
   --onefile-windows-splash-screen-image=splash.png `
@@ -125,7 +125,7 @@ python -m nuitka `
 ```batch
 python -m nuitka ^
   --onefile ^
-  --windows-disable-console ^
+  --windows-console-mode=disable ^
   --enable-plugin=tk-inter ^
   --include-module=polars,docx,fastexcel ^
   --onefile-windows-splash-screen-image=splash.png ^
