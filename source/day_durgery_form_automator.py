@@ -2,12 +2,14 @@
 """
 日间手术随访表生成系统 (Polars 重构版)
 
+版本 V6.1 (引擎修正版) 更新内容:
+- [错误修复] 修正了读取 .xls 文件时因错误指定 'xlrd' 引擎导致的 "unrecognized engine" 崩溃问题。
+- [代码简化] 移除了所有 pl.read_excel 调用中的 engine 参数，完全依赖 Polars 内置的 calamine 引擎自动处理 .xlsx 和 .xls 文件，使代码更简洁。
+
 版本 V6.0 (Polars Edition) 更新内容:
 - [核心重构] 使用 Polars 替代 Pandas，显著减小打包后的程序体积，并提升数据处理性能。
 - [读取优化] 引入 fastexcel (通过 Polars 的 calamine 引擎) 加速 .xlsx 文件读取，同时保留 xlrd 以兼容 .xls 文件。
 - [健壮性提升] 优化了 Excel 读取逻辑，默认将所有数据作为文本读入，从根本上避免了因混合数据类型（如日期被误读为浮点数）导致的崩溃。
-- [代码现代化] 采用 Polars 的表达式语法重写了数据筛选、转换和合并逻辑，代码更清晰、更高效。
-- [功能保留] 完整保留了 V5.4 版的所有功能，包括：自动检测标题行、从多个文件汇总匹配床号、详细的日志输出、友好的图形用户界面等。
 
 作者：顾江江 (由AI使用 Polars 重构)
 """
@@ -44,7 +46,7 @@ except ImportError:
 
 # ======================== 全局配置 ========================
 CONFIG = {
-    "app_title": "日间手术随访表生成系统 V6.0",
+    "app_title": "日间手术随访表生成系统 V6.1",
     "day_surgery_max_days": 2,
     "follow_up_days": 7,  # 随访发生于出院后的天数
     "unknown_bed_placeholder": "（手动填写）", # Word内容中的床号未知占位符
@@ -125,10 +127,9 @@ class DocumentGenerator:
         """
         使用 Polars 读取 Excel，自动检测标题行，并以字符串形式安全加载。
         """
-        engine = 'calamine' if file_path.endswith('.xlsx') else 'xlrd'
         try:
-            # 第一次读取，不带标题，用于检测
-            df_full = pl.read_excel(file_path, sheet_id=1, has_header=False, engine=engine)
+            # 第一次读取，不带标题，用于检测。Polars会自动处理 .xls 和 .xlsx
+            df_full = pl.read_excel(file_path, sheet_id=1, has_header=False)
             # 为避免类型推断错误，立即将所有列转换为字符串
             df_full = df_full.select([pl.all().cast(pl.Utf8, strict=False)])
         except Exception as e:
@@ -145,7 +146,7 @@ class DocumentGenerator:
         if header_row_index != -1:
             self.log(f"在文件 '{os.path.basename(file_path)}' 中自动检测到标题行位于第 {header_row_index + 1} 行。")
             # 确定标题行后，重新读取以获取正确的数据
-            df = pl.read_excel(file_path, sheet_id=1, skip_rows=header_row_index, has_header=True, engine=engine)
+            df = pl.read_excel(file_path, sheet_id=1, skip_rows=header_row_index, has_header=True)
             # 清理列名中的空格
             df.columns = [str(col).strip() for col in df.columns]
             return df, header_row_index
@@ -254,8 +255,7 @@ class DocumentGenerator:
             header_row_num = simpledialog.askinteger("设置标题行", "自动检测标题行失败，请手动输入Excel中列标题所在行号（从1开始）：", minvalue=1, maxvalue=100)
             if not header_row_num: return None
             header_row_index = header_row_num - 1
-            engine = 'calamine' if self.excel_path.endswith('.xlsx') else 'xlrd'
-            df = pl.read_excel(self.excel_path, sheet_id=1, skip_rows=header_row_index, has_header=True, engine=engine)
+            df = pl.read_excel(self.excel_path, sheet_id=1, skip_rows=header_row_index, has_header=True)
             df.columns = [str(col).strip() for col in df.columns]
 
         if required_excel_cols - set(df.columns):
