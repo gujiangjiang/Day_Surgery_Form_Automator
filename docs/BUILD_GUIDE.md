@@ -104,7 +104,7 @@ pip install nuitka
 ```powershell
 python -m nuitka `
   --onefile `
-  --windows-disable-console `
+  --windows-console-mode=disable `
   --enable-plugin=tk-inter `
   --include-module=polars,docx,fastexcel `
   --onefile-windows-splash-screen-image=splash.png `
@@ -125,7 +125,7 @@ python -m nuitka `
 ```batch
 python -m nuitka ^
   --onefile ^
-  --windows-disable-console ^
+  --windows-console-mode=disable ^
   --enable-plugin=tk-inter ^
   --include-module=polars,docx,fastexcel ^
   --onefile-windows-splash-screen-image=splash.png ^
@@ -146,9 +146,9 @@ python -m nuitka ^
 * `` ` `` (反引号): **PowerShell** 中的换行符。
 * `^`: 传统**命令提示符 (CMD)** 中的换行符。
 * `--onefile`: 打包为单文件。
-* `--windows-disable-console`: 禁用控制台窗口 (同 `pyinstaller --windowed`)。
+* `--windows-console-mode=disable`: 禁用控制台窗口 (同 `pyinstaller --windowed`)。
 * `--enable-plugin=tk-inter`: 如果您的程序使用了 `tkinter` 图形库，需启用此插件。
-* `--include-module=...`: 强制包含某些 Nuitka 可能检测不到的库。
+* `--include-module=...`: 强制包含 Nuitka 可能检测不到的库。对于 Polars 版本，我们明确加入 `polars`, `docx`, 和 `fastexcel`。
 * `--onefile-windows-splash-screen-image`: 为程序启动时添加一个闪屏/加载图片。
 * `--windows-icon-from-ico`: 指定程序图标。
 * `--mingw64`: (可选) 明确指定使用 MinGW64 编译器。
@@ -157,5 +157,3 @@ python -m nuitka ^
 * `--file-version`, `--product-version`, `--company-name`, `--product-name`, `--copyright`: 为 `.exe` 文件添加详细的元数据，可在文件属性中查看。
 
 打包成功后，在生成的 `build` 文件夹中即可找到最终的 `.exe` 文件。
-* `--include-module=...`: 强制包含 Nuitka 可能检测不到的库。对于 Polars 版本，我们明确加入 `polars`, `docx`, 和 `fastexcel`。
-* 其他参数如 `--file-version`, `--product-name` 等已更新至最新版本信息。
