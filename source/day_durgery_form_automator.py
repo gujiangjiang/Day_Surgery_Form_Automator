@@ -2,13 +2,13 @@
 """
 日间手术随访表生成系统 (Polars 重构版)
 
-版本 V6.3 (过滤逻辑修正版) 更新内容:
-- [错误修复] 修复了在 prepare_bed_number_lookup 函数中，因使用 pl.all() 结合生成器进行过滤导致的 "invalid input for col" 崩溃问题。
-- [代码优化] 将过滤逻辑修改为使用标准的 `&` 操作符连接多个条件，这是 Polars 中更稳健和通用的做法。
+版本 V6.4 (功能修复版) 更新内容:
+- [占位符修复] 重写了 Word 文档的文本替换函数 `_replace_in_element`，采用了更健壮的逻辑，确保即使占位符的文本格式不统一（如 `{{科室}}`）也能被成功替换。
+- [日志颜色修复] 修正了 `log_message` 函数中应用颜色标签的逻辑，确保警告（黄色）和错误（红色）日志能正确显示颜色。
 
-版本 V6.2 (读取逻辑修正版) 更新内容:
-- [错误修复] 彻底修复了因 `skip_rows` 参数在某些 Polars 版本中不被识别导致的崩溃问题。
-- [逻辑优化] 重写了 `_read_excel_with_header_detection` 函数，改为一次性读取后在内存中切片。
+版本 V6.3 (过滤逻辑修正版) 更新内容:
+- [错误修复] 修复了在 prepare_bed_number_lookup 函数中因过滤语法问题导致的崩溃。
+- [代码优化] 将过滤逻辑修改为使用标准的 `&` 操作符。
 
 作者：顾江江 (由AI使用 Polars 重构)
 """
@@ -45,7 +45,7 @@ except ImportError:
 
 # ======================== 全局配置 ========================
 CONFIG = {
-    "app_title": "日间手术随访表生成系统 V6.3",
+    "app_title": "日间手术随访表生成系统 V6.4",
     "day_surgery_max_days": 2,
     "follow_up_days": 7,  # 随访发生于出院后的天数
     "unknown_bed_placeholder": "（手动填写）", # Word内容中的床号未知占位符
@@ -388,16 +388,33 @@ class DocumentGenerator:
         self.log(f"已生成: {filename}")
 
     def _replace_in_element(self, element, replacements):
-        """辅助函数：在给定的元素（如文档、页眉、单元格）中递归执行替换"""
+        """
+        辅助函数：在给定的元素（如文档、页眉、单元格）中递归执行替换。
+        这个版本可以正确处理跨越不同文本格式的占位符。
+        """
         for p in element.paragraphs:
-            inline = p.runs
-            # 替换段落中的文本
-            for i in range(len(inline)):
-                text = inline[i].text
+            # 将段落内所有部分的文本连接起来，以便查找完整的占位符
+            full_text = "".join(run.text for run in p.runs)
+            
+            found_placeholder = False
+            for old in replacements.keys():
+                if old in full_text:
+                    found_placeholder = True
+                    break
+            
+            if found_placeholder:
+                # 在连接后的完整文本上执行所有替换
                 for old, new in replacements.items():
-                    if old in text:
-                        text = text.replace(old, str(new))
-                inline[i].text = text
+                    full_text = full_text.replace(old, str(new))
+                
+                # 清空段落内原有的所有部分，然后添加一个包含新文本的新部分。
+                # 这会保留段落的整体样式，但可能会丢失段落内部的局部格式（如单个词的粗体）。
+                # 对于占位符替换场景，这是一个可靠的折中方案。
+                style = p.runs[0].style if p.runs else None
+                p.clear()
+                new_run = p.add_run(full_text)
+                if style:
+                    new_run.style = style
 
         for table in element.tables:
             for row in table.rows:
@@ -405,14 +422,14 @@ class DocumentGenerator:
                     self._replace_in_element(cell, replacements)
 
     def perform_replacements(self, doc, replacements):
-        """在文档的各个部分（正文、页眉）执行文本替换"""
+        """在文档的各个部分（正文、页眉、页脚）执行文本替换"""
         self._replace_in_element(doc, replacements)
         for section in doc.sections:
             self._replace_in_element(section.header, replacements)
             self._replace_in_element(section.footer, replacements)
 
 
-# ======================== GUI界面类 (无改动) ========================
+# ======================== GUI界面类 (部分修改) ========================
 class App:
     def __init__(self, root):
         self.root = root
@@ -586,8 +603,11 @@ class App:
     def log_message(self, msg, level="info"):
         def append():
             self.log_text.config(state='normal')
-            tag = self.log_text_tags.get(level)
-            self.log_text.insert(tk.END, f"{datetime.now().strftime('%H:%M:%S')} - {msg}\n", tag)
+            # 修正后的逻辑：将标签名作为元组传递给 insert 方法
+            if level in self.log_text_tags:
+                self.log_text.insert(tk.END, f"{datetime.now().strftime('%H:%M:%S')} - {msg}\n", (level,))
+            else:
+                self.log_text.insert(tk.END, f"{datetime.now().strftime('%H:%M:%S')} - {msg}\n")
             self.log_text.config(state='disabled')
             self.log_text.see(tk.END)
         self.root.after(0, append)
