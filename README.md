@@ -44,19 +44,31 @@
 
 ```
 .
-├── main.py                 # 🚀 主程序入口
-├── requirements.txt        # 📦 依赖列表
-├── assets/                 # 🎨 存放资源文件
-│   ├── app.ico             # 程序图标
-│   └── splash.png          # 启动画面
-└── src/                    # 源代码目录
-    ├── __init__.py
-    ├── config.py           # 全局配置
-    ├── utils.py            # 工具函数
-    ├── core/               # 核心逻辑模块
-    │   └── logic.py
-    └── gui/                # GUI界面模块
-        └── app.py
+├── LICENSE                    # 许可协议
+├── README.md                  # 本说明文件
+├── docs/                      # 存放文档和相关资源
+│   ├── BUILD_GUIDE.md         # 程序打包指南
+│   ├── changelog.md           # 更新日志
+│   ├── images/                # 文档用图片 (如截图)
+│   │   ├── icons/             # 可选图标
+│   │   └── screenshots/       # 软件截图
+│   └── templates/             # Word/Excel模板
+├── source/                    # 源代码目录
+│   ├── main.py                # 🚀 主程序入口
+│   ├── requirements.txt       # 📦 依赖列表
+│   ├── assets/                # 🎨 存放资源文件
+│   │   ├── app.ico            # 程序图标
+│   │   └── splash.png         # 启动画面
+│   └── src/                   # 模块目录
+│       ├── __init__.py        # 将src声明为可导入的包
+│       ├── config.py          # 全局配置
+│       ├── utils.py           # 工具函数
+│       ├── core/              # 核心逻辑模块
+│       │   ├── __init__.py
+│       │   └── logic.py
+│       └── gui/               # GUI界面模块
+│           ├── __init__.py
+│           └── app.py
 ```
 
 ## 🚀 安装与运行
