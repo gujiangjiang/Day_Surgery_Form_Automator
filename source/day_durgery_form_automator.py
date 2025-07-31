@@ -2,14 +2,14 @@
 """
 日间手术随访表生成系统 (SQLite 重构版)
 
+版本 V7.2 (日志格式微调) 更新内容:
+- [日志格式] 新增了一个内部的原始日志函数，用于输出不带时间戳的分隔符 (====)，使最终的日志摘要格式更清晰。
+
 版本 V7.1 (日志修复版) 更新内容:
-- [日志修复] 重写了 App.log_message 函数，使其能够正确处理多行日志消息。现在，即使日志内容包含换行符，每一行也都会被正确地添加时间戳，并会自动忽略空的日志条目，解决了在日志末尾出现“空白时间戳”和格式错乱的问题。
+- [日志修复] 重写了 App.log_message 函数，使其能够正确处理多行日志消息。现在，即使日志内容包含换行符，每一行也都会被正确地添加时间戳，并会自动忽略空的日志条目。
 
 版本 V7.0 (SQLite 内核) 更新内容:
 - [核心重构] 移除 Polars 依赖，改用 Python 内置的 SQLite3 作为数据处理引擎，显著减小打包体积，提升数据处理的稳定性。
-- [依赖简化] 移除 fastexcel，使用 openpyxl 和 xlrd 直接读取 Excel 文件，并保留对 .xls 和 .xlsx 格式的兼容性。
-- [性能优化] 所有数据筛选、匹配和合并操作均通过内存数据库中的 SQL 查询完成，逻辑清晰，执行高效。
-- [健壮性提升] 完整保留了原有的所有核心功能。
 
 作者：顾江江 (由AI使用 SQLite 重构)
 """
@@ -47,7 +47,7 @@ except ImportError:
 
 # ======================== 全局配置 ========================
 CONFIG = {
-    "app_title": "日间手术随访表生成系统 V7.1",
+    "app_title": "日间手术随访表生成系统 V7.2",
     "day_surgery_max_days": 2,
     "follow_up_days": 7,  # 随访发生于出院后的天数
     "unknown_bed_placeholder": "（手动填写）", # Word内容中的床号未知占位符
@@ -404,12 +404,12 @@ class DocumentGenerator:
                     self.log(f"处理行 {index + 1} (姓名: {row['name']}) 时发生错误: {e}", "error")
                 self.update_progress((index + 1) / total_rows * 100)
             
-            self.log("="*30)
+            self.app.log_raw("="*30)
             self.log(f"处理完成！成功生成 {success_count} 份文档。")
             
             if unmatched_patients:
                 summary_message = f"注意：有 {len(unmatched_patients)} 位符合条件的日间手术患者未能匹配到床号：\n\n" + "\n".join(unmatched_patients)
-                self.log("="*30, "warning")
+                self.app.log_raw("="*30)
                 self.log("以下日间手术患者未能匹配到床号:", "warning")
                 for patient_info in unmatched_patients:
                     self.log(f"- {patient_info}", "warning")
@@ -697,31 +697,35 @@ class App:
         """
         向日志文本框中添加消息，此版本经过加固，可以正确处理多行消息。
         """
-        # 如果消息为空或只包含空白字符，则直接返回，不记录
         if not msg or not str(msg).strip():
             return
 
         def append():
             self.log_text.config(state='normal')
-            
-            # 将可能的多行消息按换行符分割
             lines = str(msg).split('\n')
             timestamp = datetime.now().strftime('%H:%M:%S')
             
             for line in lines:
-                # 再次检查，确保分割后的单行也不是纯空白
                 if line.strip():
                     full_log_line = f"{timestamp} - {line}\n"
-                    # 根据日志级别应用不同的颜色标签
                     if level in self.log_text_tags:
                         self.log_text.insert(tk.END, full_log_line, (level,))
                     else:
                         self.log_text.insert(tk.END, full_log_line)
 
             self.log_text.config(state='disabled')
-            self.log_text.see(tk.END) # 自动滚动到最后
+            self.log_text.see(tk.END)
             
-        # 使用 after(0, ...) 将GUI更新操作安全地交由主线程处理
+        self.root.after(0, append)
+
+    def log_raw(self, msg):
+        """向日志框中添加不带时间戳的原始文本。"""
+        def append():
+            self.log_text.config(state='normal')
+            # 直接插入消息和换行符
+            self.log_text.insert(tk.END, str(msg) + '\n')
+            self.log_text.config(state='disabled')
+            self.log_text.see(tk.END)
         self.root.after(0, append)
 
     def update_progress(self, value):
