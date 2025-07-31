@@ -45,9 +45,15 @@ class DocumentGenerator:
         total_records_added = 0
         for file_path in self.surgery_query_paths:
             if self.stop_event.is_set(): return
-            col_map, header_row_idx, _, read_only_success = excel_reader.find_header_and_map_cols(file_path, CONFIG['required_surgery_cols'], self.log)
-            if col_map:
-                records = list(excel_reader.read_surgery_data(file_path, col_map, header_row_idx, self.log, read_only_mode=read_only_success))
+            
+            records, _ = excel_reader.process_file(
+                file_path=file_path,
+                required_keys=CONFIG['required_surgery_cols'],
+                processor_type='surgery',
+                log_func=self.log
+            )
+            
+            if records:
                 count = db_manager.load_surgery_data(records)
                 total_records_added += count
         
@@ -55,20 +61,25 @@ class DocumentGenerator:
 
     def _load_patient_data(self, db_manager):
         """加载主患者列表文件数据到数据库"""
-        # self.log("开始读取出院患者列表Excel文件...") # 这句日志移到 find_header_and_map_cols 内部
-        col_map, header_row_idx, _, read_only_success = excel_reader.find_header_and_map_cols(self.excel_path, CONFIG['required_patient_cols'], self.log)
+        records, col_map = excel_reader.process_file(
+            file_path=self.excel_path,
+            required_keys=CONFIG['required_patient_cols'],
+            processor_type='patient',
+            log_func=self.log
+        )
 
-        if not col_map:
-            messagebox.showerror("读取失败", f"在 '出院患者列表' 文件中无法自动定位标题行。\n请确保文件包含以下列: {', '.join([CONFIG['column_mapping'][k] for k in CONFIG['required_patient_cols']])}")
+        if not records:
+            messagebox.showerror("读取失败", f"在 '出院患者列表' 文件中无法自动定位标题行或未找到任何有效数据。\n请确保文件包含以下列: {', '.join([CONFIG['column_mapping'][k] for k in CONFIG['required_patient_cols']])}")
             return False
-            
-        if 'bed_number' not in col_map:
+
+        # --- 已恢复的日志检查逻辑 ---
+        if col_map and 'bed_number' not in col_map:
             if self.surgery_query_paths:
                 self.log("警告：主Excel文件中未找到“床号”列。将尝试从手术查询文件补充。", "warning")
             else:
                 self.log("警告：主Excel文件中未找到“床号”列，床号信息可能为空。", "warning")
+        # -----------------------------
 
-        records = list(excel_reader.read_patient_data(self.excel_path, col_map, header_row_idx, self.log, read_only_mode=read_only_success))
         count = db_manager.load_patient_data(records)
 
         if count > 0:
@@ -89,7 +100,7 @@ class DocumentGenerator:
             if self.stop_event.is_set(): return
 
             if not self._load_patient_data(db_manager):
-                messagebox.showerror("错误", "无法从'出院患者列表'加载任何有效数据，程序终止。")
+                # messagebox.showerror("错误", "无法从'出院患者列表'加载任何有效数据，程序终止。") # 这条消息在函数内部已经显示
                 return
             if self.stop_event.is_set(): return
 
