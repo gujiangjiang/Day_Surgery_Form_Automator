@@ -2,10 +2,10 @@
 # (日间手术随访表生成系统)
 
 [![Python](https://img.shields.io/badge/Python-3.7+-blue.svg)](https://www.python.org/)
-[![Version](https://img.shields.io/badge/Version-7.4-brightgreen.svg)]()
+[![Version](https://img.shields.io/badge/Version-8.0-brightgreen.svg)]()
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
-这是一款功能强大且用户友好的医疗文档自动化工具，专为简化“日间手术随访表”的生成流程而设计。**V7.x 版本为第二次核心重构，采用 Python 内置的 `SQLite` 数据库替代 `Polars` 作为数据处理引擎，在保持高效性能的同时，实现了依赖的极致轻量化，使得最终打包的程序体积大幅减小。**
+这是一款功能强大且用户友好的医疗文档自动化工具，专为简化“日间手术随访表”的生成流程而设计。**V8.x 版本对项目代码进行了全面的模块化重构，将原先单一的脚本拆分为独立的逻辑 (`core`)、界面 (`gui`)、配置 (`config.py`) 和工具函数 (`utils.py`) 模块，大幅提升了代码的可读性与可维护性。**
 
 ![软件截图](./docs/images/screenshots/screenshot.png)
 *<p align="center">软件截图</p>*
@@ -14,7 +14,7 @@
 
 ---
 
-## ✨ 核心功能与优势
+## ✨ 核心功能
 
 * ### 极致轻量、零依赖的内核
   * **SQLite 引擎驱动**: 全面采用 Python 内置的 `SQLite` 内存数据库进行数据处理，无需任何额外的第三方数据处理库，从根本上解决了程序打包体积过大的问题。
@@ -35,13 +35,37 @@
   * **面向对象重构 (OOP)**: 代码被重构为 `App` (界面) 和 `DocumentGenerator` (逻辑) 两个独立的类，结构清晰，极大地提高了代码的可读性和可维护性。
   * **多线程处理**: 将耗时的文件生成任务放在独立的线程中执行，确保了GUI在处理过程中始终保持响应，提升了用户体验。
 
+* ### 清晰的项目结构
+    * **模块化设计**: 代码被拆分为配置、工具、核心逻辑和界面等模块，结构清晰，易于维护。
+    * **中央化配置**: 所有关键参数集中在 `src/config.py` 文件中，方便快速调整。
+    * **多线程处理**: 核心任务在后台线程运行，避免界面卡顿，提升用户体验。
+
+## 📂 项目结构
+
+```
+.
+├── main.py                 # 🚀 主程序入口
+├── requirements.txt        # 📦 依赖列表
+├── assets/                 # 🎨 存放资源文件
+│   ├── app.ico             # 程序图标
+│   └── splash.png          # 启动画面
+└── src/                    # 源代码目录
+    ├── __init__.py
+    ├── config.py           # 全局配置
+    ├── utils.py            # 工具函数
+    ├── core/               # 核心逻辑模块
+    │   └── logic.py
+    └── gui/                # GUI界面模块
+        └── app.py
+```
+
 ## 🚀 安装与运行
 
 详细的安装、运行及打包说明，请参考： **[自动化程序编译与打包指南](./docs/BUILD_GUIDE.md)**
 
 ## 🔧 配置说明
 
-本程序的所有关键配置项均位于脚本顶部的 `CONFIG` 字典中，您可以根据需要进行修改：
+本程序的所有关键配置项均位于 `src/config.py` 文件中，您可以根据需要进行修改：
 
 * `app_title`: 窗口标题。
 * `day_surgery_max_days`: 定义日间手术的最大住院天数。
