@@ -87,11 +87,25 @@ def main():
     start_time = time.time()
     
     try:
-        # 适配高DPI屏幕
-        if sys.getwindowsversion().major >= 6 and sys.getwindowsversion().minor >= 3:
-            ctypes.windll.shcore.SetProcessDpiAwareness(1)
-        else:
-            ctypes.windll.user32.SetProcessDPIAware()
+        # 适配高DPI屏幕 (Modernized approach)
+        # Only perform this on Windows
+        if sys.platform == "win32":
+            # 优先尝试最新的API (适用于Windows 10 v1703+)，提供最佳的跨显示器缩放效果
+            try:
+                # Per-Monitor V2 DPI Awareness. Requires Windows 10 Creators Update (1703)+
+                ctypes.windll.user32.SetProcessDpiAwarenessContext(-4)
+            except (AttributeError, OSError):
+                # 如果最新API不可用，则回退到旧版API (适用于Windows 8.1+)
+                try:
+                    # Per-Monitor DPI Awareness. Requires Windows 8.1+
+                    ctypes.windll.shcore.SetProcessDpiAwareness(2)
+                except (AttributeError, OSError):
+                    # 如果shcore也不可用，则使用最旧的API (适用于Windows Vista+)
+                    try:
+                        # System DPI Awareness. Requires Windows Vista+
+                        ctypes.windll.user32.SetProcessDPIAware()
+                    except (AttributeError, OSError):
+                        pass # Gracefully fail on very old Windows versions
     except Exception as e:
         print(f"设置DPI感知失败: {e}")
 
