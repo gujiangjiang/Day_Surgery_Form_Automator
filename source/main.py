@@ -27,7 +27,7 @@ except ImportError:
     sys.exit(1)
 
 # 从src目录导入App主类
-from src.gui.app import App
+from src.gui.main_app import MainApp
 
 def get_asset_path(relative_path):
     """
@@ -118,7 +118,7 @@ def main():
         print(f"警告：未找到图标文件。尝试的路径为: {icon_path}")
 
     # 2. 初始化主程序GUI
-    app_instance = App(root)
+    app_instance = MainApp(root)
 
     def show_main_window():
         splash.destroy()
