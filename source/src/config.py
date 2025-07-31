@@ -4,7 +4,7 @@
 """
 
 CONFIG = {
-    "app_title": "日间手术随访表生成系统 V8.0",
+    "app_title": "日间手术随访表生成系统 V8.1",
     "day_surgery_max_days": 2,
     "follow_up_days": 7,  # 随访发生于出院后的天数
     "unknown_bed_placeholder": "（手动填写）", # Word内容中的床号未知占位符
