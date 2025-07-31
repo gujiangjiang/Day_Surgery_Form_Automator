@@ -26,13 +26,6 @@ except ImportError:
     )
     sys.exit(1)
 
-# 尝试导入Nuitka启动画面模块
-try:
-    import nuitka_splashscreen_python
-    splash_active = True
-except ImportError:
-    splash_active = False
-
 # 从src目录导入App主类
 from src.gui.app import App
 
