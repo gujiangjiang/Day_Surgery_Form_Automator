@@ -112,7 +112,7 @@ python -m nuitka `
   --mingw64 `
   --output-dir=build `
   --output-filename="day_durgery_form_automator.exe" `
-  --file-version=8.0.1.0 `
+  --file-version=8.0.1.1 `
   --product-version=8.0 `
   --company-name="Danyang People's Hospital" `
   --product-name="Day Surgery Form Automator" `
@@ -133,7 +133,7 @@ python -m nuitka ^
   --mingw64 ^
   --output-dir=build ^
   --output-filename="day_durgery_form_automator.exe" ^
-  --file-version=8.0.1.0 `
+  --file-version=8.0.1.1 `
   --product-version=8.0 `
   --company-name="Danyang People's Hospital" `
   --product-name="Day Surgery Form Automator" `

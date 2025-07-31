@@ -3,6 +3,7 @@
 日间手术随访表生成系统 (重构版) - 主程序入口
 """
 
+import os
 import sys
 import tkinter as tk
 from tkinter import messagebox
@@ -34,37 +35,44 @@ except ImportError:
 # 从src目录导入App主类
 from src.gui.app import App
 
+def get_asset_path(relative_path):
+    """
+    获取资源的绝对路径。这可以确保无论从哪里运行脚本，
+    都能正确找到 assets 文件夹中的文件。
+    """
+    # 获取脚本所在的目录
+    base_path = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(base_path, relative_path)
+
 def main():
     """
     主函数，负责初始化和运行应用。
     """
     try:
-        # 适配高DPI屏幕，兼容 Windows 7, 8, 10, 11
-        # 检查Windows版本号
-        # Win 8.1 (6.3) 及以上版本支持 SetProcessDpiAwareness
+        # 适配高DPI屏幕
         if sys.getwindowsversion().major >= 6 and sys.getwindowsversion().minor >= 3:
-            # 使用新版API
             ctypes.windll.shcore.SetProcessDpiAwareness(1)
-        # Win Vista (6.0) / 7 (6.1) / 8 (6.2) 使用旧版API
         else:
             ctypes.windll.user32.SetProcessDPIAware()
     except Exception as e:
         print(f"设置DPI感知失败: {e}")
-        pass
-    
+
+    # 获取资源的绝对路径
+    icon_path = get_asset_path("assets/app.ico")
+    splash_path = get_asset_path("assets/splash.png")
+
     # 如果使用Nuitka打包并包含启动画面
     if splash_active:
         nuitka_splashscreen_python.mark_as_deployed(
-            # 假设启动画面图片在 assets 目录下
-            image_path="assets/splash.png" 
+            image_path=splash_path
         )
 
     root = tk.Tk()
-    # 假设程序图标在 assets 目录下
     try:
-        root.iconbitmap("assets/app.ico")
+        root.iconbitmap(icon_path)
     except tk.TclError:
-        print("未找到图标文件: assets/app.ico")
+        # 打印完整的、程序正在尝试访问的路径，方便调试
+        print(f"警告：未找到图标文件。尝试的路径为: {icon_path}")
 
     # 在 App 初始化时隐藏主窗口，防止闪烁
     root.withdraw()
