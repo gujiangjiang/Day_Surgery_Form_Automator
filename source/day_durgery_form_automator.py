@@ -2,12 +2,12 @@
 """
 日间手术随访表生成系统 (SQLite 重构版)
 
-版本 V7.3 (功能恢复) 更新内容:
-- [功能恢复] 恢复了当“出院患者列表”中缺少“床号”列时的警告日志功能。现在程序会明确提示用户，并将仅使用“手术查询”文件来补充床号。
-- [逻辑确认] 再次确认了床号的合并逻辑：优先使用“出院患者列表”中的床号，仅当其为空时，才尝试从“手术查询”文件中补充。
+版本 V7.4 (Win7 兼容性修复) 更新内容:
+- [兼容性] 修复了在高DPI设置代码中因调用了Windows 7不支持的新版API而导致的程序崩溃问题。现在程序会自动检测操作系统版本，并为Win7/Win10/Win11调用相对应的DPI设置函数。
 
-版本 V7.2 (日志格式微调) 更新内容:
-- [日志格式] 新增了一个内部的原始日志函数，用于输出不带时间戳的分隔符 (====)，使最终的日志摘要格式更清晰。
+版本 V7.3 (功能恢复) 更新内容:
+- [功能恢复] 恢复了当“出院患者列表”中缺少“床号”列时的警告日志功能。
+- [逻辑确认] 再次确认了床号的合并逻辑：优先使用“出院患者列表”中的床号。
 
 作者：顾江江 (由AI使用 SQLite 重构)
 """
@@ -45,7 +45,7 @@ except ImportError:
 
 # ======================== 全局配置 ========================
 CONFIG = {
-    "app_title": "日间手术随访表生成系统 V7.3",
+    "app_title": "日间手术随访表生成系统 V7.4",
     "day_surgery_max_days": 2,
     "follow_up_days": 7,  # 随访发生于出院后的天数
     "unknown_bed_placeholder": "（手动填写）", # Word内容中的床号未知占位符
@@ -762,10 +762,18 @@ class App:
 # ======================== 主程序入口 ========================
 if __name__ == "__main__":
     try:
-        # 适配高DPI屏幕
+        # 适配高DPI屏幕，兼容 Windows 7, 8, 10, 11
         import ctypes
-        ctypes.windll.shcore.SetProcessDpiAwareness(1)
-    except Exception:
+        # 检查Windows版本号
+        # Win 8.1 (6.3) 及以上版本支持 SetProcessDpiAwareness
+        if sys.getwindowsversion().major >= 6 and sys.getwindowsversion().minor >= 3:
+            # 使用新版API
+            ctypes.windll.shcore.SetProcessDpiAwareness(1)
+        # Win Vista (6.0) / 7 (6.1) / 8 (6.2) 使用旧版API
+        else:
+            ctypes.windll.user32.SetProcessDPIAware()
+    except Exception as e:
+        print(f"设置DPI感知失败: {e}")
         pass
     
     if splash_active:

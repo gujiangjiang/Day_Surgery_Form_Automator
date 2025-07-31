@@ -111,8 +111,8 @@ python -m nuitka `
   --mingw64 `
   --output-dir=build `
   --output-filename="day_durgery_form_automator.exe" `
-  --file-version=7.3.1.0 `
-  --product-version=7.3 `
+  --file-version=7.4.1.0 `
+  --product-version=7.4 `
   --company-name="Danyang People's Hospital" `
   --product-name="Day Surgery Form Automator" `
   --copyright="© 2025 gujiangjiang" `
@@ -131,8 +131,8 @@ python -m nuitka ^
   --mingw64 ^
   --output-dir=build ^
   --output-filename="day_durgery_form_automator.exe" ^
-  --file-version=7.3.1.0 `
-  --product-version=7.3 `
+  --file-version=7.4.1.0 `
+  --product-version=7.4 `
   --company-name="Danyang People's Hospital" `
   --product-name="Day Surgery Form Automator" `
   --copyright="© 2025 gujiangjiang" `
