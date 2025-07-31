@@ -103,6 +103,7 @@ pip install nuitka
 
 ```powershell
 python -m nuitka `
+  --lto=yes `
   --onefile `
   --windows-console-mode=disable `
   --enable-plugin=tk-inter `
@@ -123,6 +124,7 @@ python -m nuitka `
 
 ```batch
 python -m nuitka ^
+  --lto=yes ^
   --onefile ^
   --windows-console-mode=disable ^
   --enable-plugin=tk-inter ^
@@ -143,6 +145,7 @@ python -m nuitka ^
 
 * `` ` `` (反引号): **PowerShell** 中的换行符。
 * `^`: 传统**命令提示符 (CMD)** 中的换行符。
+* `--lto=yes`: 链接时优化，允许在最终链接阶段跨模块进行全局优化。
 * `--onefile`: 打包为单文件。
 * `--windows-console-mode=disable`: 禁用控制台窗口 (同 `pyinstaller --windowed`)。
 * `--enable-plugin=tk-inter`: 如果您的程序使用了 `tkinter` 图形库，需启用此插件。
