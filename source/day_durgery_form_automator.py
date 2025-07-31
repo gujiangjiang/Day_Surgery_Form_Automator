@@ -2,14 +2,12 @@
 """
 日间手术随访表生成系统 (SQLite 重构版)
 
+版本 V7.3 (功能恢复) 更新内容:
+- [功能恢复] 恢复了当“出院患者列表”中缺少“床号”列时的警告日志功能。现在程序会明确提示用户，并将仅使用“手术查询”文件来补充床号。
+- [逻辑确认] 再次确认了床号的合并逻辑：优先使用“出院患者列表”中的床号，仅当其为空时，才尝试从“手术查询”文件中补充。
+
 版本 V7.2 (日志格式微调) 更新内容:
 - [日志格式] 新增了一个内部的原始日志函数，用于输出不带时间戳的分隔符 (====)，使最终的日志摘要格式更清晰。
-
-版本 V7.1 (日志修复版) 更新内容:
-- [日志修复] 重写了 App.log_message 函数，使其能够正确处理多行日志消息。现在，即使日志内容包含换行符，每一行也都会被正确地添加时间戳，并会自动忽略空的日志条目。
-
-版本 V7.0 (SQLite 内核) 更新内容:
-- [核心重构] 移除 Polars 依赖，改用 Python 内置的 SQLite3 作为数据处理引擎，显著减小打包体积，提升数据处理的稳定性。
 
 作者：顾江江 (由AI使用 SQLite 重构)
 """
@@ -47,7 +45,7 @@ except ImportError:
 
 # ======================== 全局配置 ========================
 CONFIG = {
-    "app_title": "日间手术随访表生成系统 V7.2",
+    "app_title": "日间手术随访表生成系统 V7.3",
     "day_surgery_max_days": 2,
     "follow_up_days": 7,  # 随访发生于出院后的天数
     "unknown_bed_placeholder": "（手动填写）", # Word内容中的床号未知占位符
@@ -286,6 +284,10 @@ class DocumentGenerator:
             # 如果自动查找失败，可以加入手动输入行号的逻辑，但这里为了简化，直接报错退出
             messagebox.showerror("读取失败", f"在 '出院患者列表' 文件中无法自动定位标题行。\n请确保文件包含以下列: {', '.join([CONFIG['column_mapping'][k] for k in CONFIG['required_patient_cols']])}")
             return False
+            
+        # 【功能恢复】检查主文件中是否存在“床号”列
+        if 'bed_number' not in col_map:
+            self.log("警告：主Excel文件中未找到“床号”列。将尝试从手术查询文件补充。", "warning")
 
         records_to_insert = []
         internal_keys = list(CONFIG['column_mapping'].keys())
@@ -334,8 +336,9 @@ class DocumentGenerator:
         cur = self.conn.cursor()
         
         # 构建查询语句
-        # COALESCE函数会返回第一个非NULL的值，完美实现床号的优先补充逻辑
-        # CAST将住院天数转为REAL(浮点数)进行比较
+        # COALESCE函数会返回第一个非NULL的值，完美实现床号的优先补充逻辑：
+        # 1. 尝试使用 p.bed_number (来自出院患者列表)
+        # 2. 如果 p.bed_number 是空字符串或NULL，则尝试使用 s.bed_number (来自手术查询)
         query = f"""
             SELECT
                 p.*,
@@ -522,7 +525,7 @@ class DocumentGenerator:
             self._replace_in_element(section.footer, replacements)
 
 
-# ======================== GUI界面类 (部分修改) ========================
+# ======================== GUI界面类 (无修改) ========================
 class App:
     def __init__(self, root):
         self.root = root
