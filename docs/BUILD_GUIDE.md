@@ -93,7 +93,15 @@ pip install nuitka
 ```
 *Nuitka* 还需要一个 C++ 编译器。在 Windows 上，它会自动提示并帮助您下载安装 *MinGW64*，按照提示操作即可。
 
-**2. 执行打包命令**
+**2. 测试编译命令**
+
+如果您目前处于开发状态，希望快速编译并运行，请复制并执行以下命令：
+
+```batch
+python -m nuitka --run --windows-console-mode=disable --include-data-dir=./assets=assets --mingw64 --output-dir=dev main.py
+```
+
+**3. 执行打包命令**
 
 为了命令的清晰性，建议使用多行格式。请根据您使用的命令行工具（PowerShell 或 CMD）选择对应的版本。
 
