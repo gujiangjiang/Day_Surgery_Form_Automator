@@ -45,9 +45,9 @@ class DocumentGenerator:
         total_records_added = 0
         for file_path in self.surgery_query_paths:
             if self.stop_event.is_set(): return
-            col_map, header_row_idx, _ = excel_reader.find_header_and_map_cols(file_path, CONFIG['required_surgery_cols'], self.log)
+            col_map, header_row_idx, _, read_only_success = excel_reader.find_header_and_map_cols(file_path, CONFIG['required_surgery_cols'], self.log)
             if col_map:
-                records = list(excel_reader.read_surgery_data(file_path, col_map, header_row_idx, self.log))
+                records = list(excel_reader.read_surgery_data(file_path, col_map, header_row_idx, self.log, read_only_mode=read_only_success))
                 count = db_manager.load_surgery_data(records)
                 total_records_added += count
         
@@ -55,8 +55,8 @@ class DocumentGenerator:
 
     def _load_patient_data(self, db_manager):
         """加载主患者列表文件数据到数据库"""
-        self.log("开始读取出院患者列表Excel文件...")
-        col_map, header_row_idx, _ = excel_reader.find_header_and_map_cols(self.excel_path, CONFIG['required_patient_cols'], self.log)
+        # self.log("开始读取出院患者列表Excel文件...") # 这句日志移到 find_header_and_map_cols 内部
+        col_map, header_row_idx, _, read_only_success = excel_reader.find_header_and_map_cols(self.excel_path, CONFIG['required_patient_cols'], self.log)
 
         if not col_map:
             messagebox.showerror("读取失败", f"在 '出院患者列表' 文件中无法自动定位标题行。\n请确保文件包含以下列: {', '.join([CONFIG['column_mapping'][k] for k in CONFIG['required_patient_cols']])}")
@@ -68,7 +68,7 @@ class DocumentGenerator:
             else:
                 self.log("警告：主Excel文件中未找到“床号”列，床号信息可能为空。", "warning")
 
-        records = list(excel_reader.read_patient_data(self.excel_path, col_map, header_row_idx, self.log))
+        records = list(excel_reader.read_patient_data(self.excel_path, col_map, header_row_idx, self.log, read_only_mode=read_only_success))
         count = db_manager.load_patient_data(records)
 
         if count > 0:
