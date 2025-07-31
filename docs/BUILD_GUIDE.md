@@ -108,7 +108,6 @@ python -m nuitka `
   --enable-plugin=tk-inter `
   --include-data-dir=./assets=assets `
   --windows-icon-from-ico=assets/app.ico `
-  --onefile-windows-splash-screen-image=assets/splash.png `
   --mingw64 `
   --output-dir=build `
   --output-filename="day_durgery_form_automator.exe" `
@@ -129,7 +128,6 @@ python -m nuitka ^
   --enable-plugin=tk-inter ^
   --include-data-dir=./assets=assets ^
   --windows-icon-from-ico=assets/app.ico ^
-  --onefile-windows-splash-screen-image=assets/splash.png ^
   --mingw64 ^
   --output-dir=build ^
   --output-filename="day_durgery_form_automator.exe" ^
@@ -149,7 +147,6 @@ python -m nuitka ^
 * `--windows-console-mode=disable`: 禁用控制台窗口 (同 `pyinstaller --windowed`)。
 * `--enable-plugin=tk-inter`: 如果您的程序使用了 `tkinter` 图形库，需启用此插件。
 * `--include-data-dir=./assets=assets`: **关键参数**。将 `assets` 文件夹打包进去。
-* `--onefile-windows-splash-screen-image`: 指定启动画面图片。
 * `--windows-icon-from-ico`: 指定程序图标。
 * `--mingw64`: (可选) 明确指定使用 MinGW64 编译器。
 * `--output-dir`: 指定输出文件夹的名称。
