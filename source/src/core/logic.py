@@ -313,47 +313,99 @@ class DocumentGenerator:
         filename = "".join(c for c in filename if c not in r'\/:*?"<>|')
         
         doc = Document(self.template_path)
-        self.perform_replacements(doc, replacements)
+        # 更新：调用新的、保留格式的替换函数
+        perform_replacements(doc, replacements)
         doc.save(os.path.join(self.output_dir, filename))
         self.log(f"已生成: {filename}")
         
         return bed_number_is_unknown
 
-    def _replace_in_element(self, element, replacements):
-        """
-        辅助函数：在给定的元素（如文档、页眉、单元格）中递归执行替换。
-        """
-        for p in element.paragraphs:
-            full_text = "".join(run.text for run in p.runs)
-            
-            found_placeholder = False
-            for old in replacements.keys():
-                if old in full_text:
-                    found_placeholder = True
-                    break
-            
-            if found_placeholder:
-                for old, new in replacements.items():
-                    full_text = full_text.replace(old, str(new))
-                
-                style = p.runs[0].style if p.runs else None
-                font = p.runs[0].font if p.runs else None
-                p.clear()
-                new_run = p.add_run(full_text)
-                if style:
-                    new_run.style = style
-                if font:
-                    new_run.font.name = font.name
-                    new_run.font.size = font.size
 
-        for table in element.tables:
+# --- 以下是新的、用于替换Word占位符并保留格式的函数 ---
+
+def replace_in_paragraph(paragraph, replacements):
+    """
+    在单个段落中执行占位符替换，高级方法，可以处理跨run的占位符。
+    这种方法可以保留占位符的原始样式。
+    """
+    for old_text, new_text in replacements.items():
+        # 使用 while 循环来处理同一段落中多次出现的相同占位符
+        while old_text in paragraph.text:
+            runs = paragraph.runs
+            full_text = "".join(run.text for run in runs)
+
+            start_index = full_text.find(old_text)
+            if start_index == -1:
+                break 
+            end_index = start_index + len(old_text)
+
+            start_run_index, start_run_offset = None, None
+            end_run_index, end_run_offset = None, None
+            current_pos = 0
+
+            # 定位包含占位符的起始和结束 run
+            for i, run in enumerate(runs):
+                run_len = len(run.text)
+                if start_run_index is None and current_pos <= start_index < current_pos + run_len:
+                    start_run_index = i
+                    start_run_offset = start_index - current_pos
+                if end_run_index is None and current_pos < end_index <= current_pos + run_len:
+                    end_run_index = i
+                    end_run_offset = end_index - current_pos
+                current_pos += run_len
+                if start_run_index is not None and end_run_index is not None:
+                    break
+
+            # 对定位到的 run 执行替换操作
+            if start_run_index is not None and end_run_index is not None:
+                if start_run_index == end_run_index:
+                    # 情况1: 占位符在单个 run 中
+                    run = runs[start_run_index]
+                    run.text = run.text[:start_run_offset] + str(new_text) + run.text[end_run_offset:]
+                else:
+                    # 情况2: 占位符跨越多个 run
+                    # 替换起始 run 的内容
+                    start_run = runs[start_run_index]
+                    start_run.text = start_run.text[:start_run_offset] + str(new_text)
+
+                    # 清空中间 run 的内容
+                    for i in range(start_run_index + 1, end_run_index):
+                        runs[i].text = ""
+
+                    # 处理结束 run 的内容
+                    end_run = runs[end_run_index]
+                    end_run.text = end_run.text[end_run_offset:]
+
+def perform_replacements(doc, replacements):
+    """
+    在整个Word文档（正文、表格、页眉、页脚）中执行文本替换。
+    """
+    # 替换正文中的段落
+    for paragraph in doc.paragraphs:
+        replace_in_paragraph(paragraph, replacements)
+
+    # 替换表格中的段落
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for paragraph in cell.paragraphs:
+                    replace_in_paragraph(paragraph, replacements)
+
+    # 替换页眉和页脚
+    for section in doc.sections:
+        # 页眉
+        for paragraph in section.header.paragraphs:
+            replace_in_paragraph(paragraph, replacements)
+        for table in section.header.tables:
             for row in table.rows:
                 for cell in row.cells:
-                    self._replace_in_element(cell, replacements)
-
-    def perform_replacements(self, doc, replacements):
-        """在文档的各个部分（正文、页眉、页脚）执行文本替换"""
-        self._replace_in_element(doc, replacements)
-        for section in doc.sections:
-            self._replace_in_element(section.header, replacements)
-            self._replace_in_element(section.footer, replacements)
+                    for paragraph in cell.paragraphs:
+                        replace_in_paragraph(paragraph, replacements)
+        # 页脚
+        for paragraph in section.footer.paragraphs:
+            replace_in_paragraph(paragraph, replacements)
+        for table in section.footer.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for paragraph in cell.paragraphs:
+                        replace_in_paragraph(paragraph, replacements)
