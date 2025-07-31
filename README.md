@@ -2,12 +2,12 @@
 # (日间手术随访表生成系统)
 
 [![Python](https://img.shields.io/badge/Python-3.7+-blue.svg)](https://www.python.org/)
-[![Version](https://img.shields.io/badge/Version-6.4-brightgreen.svg)]()
+[![Version](https://img.shields.io/badge/Version-7.0-brightgreen.svg)]()
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
-这是一款功能强大且用户友好的医疗文档自动化工具，专为简化“日间手术随访表”的生成流程而设计。**V6.x 版本经过核心重构，采用 `Polars` 替代 `Pandas` 作为数据处理引擎，使得程序打包后体积更小、运行效率更高。**
+这是一款功能强大且用户友好的医疗文档自动化工具，专为简化“日间手术随访表”的生成流程而设计。**V7.x 版本为第二次核心重构，采用 Python 内置的 `SQLite` 数据库替代 `Polars` 作为数据处理引擎，在保持高效性能的同时，实现了依赖的极致轻量化，使得最终打包的程序体积大幅减小。**
 
-![截图](./docs/images/screenshots/screenshot.png)
+![软件截图](./docs/images/screenshots/screenshot.png)
 *<p align="center">软件截图</p>*
 
 ### 更新日志：[CHANGELOG](./docs/changelog.md)
@@ -16,8 +16,8 @@
 
 ## ✨ 核心功能与优势
 
-* ### 更轻量、更高效的数据处理内核
-  * **Polars 引擎驱动**: 全面采用高性能的 `Polars` 库进行数据处理，显著降低了打包后程序的体积，并提升了数据读写和计算的速度。
+* ### 极致轻量、零依赖的内核
+  * **SQLite 引擎驱动**: 全面采用 Python 内置的 `SQLite` 内存数据库进行数据处理，无需任何额外的第三方数据处理库，从根本上解决了程序打包体积过大的问题。
   * **多文件合并处理**: 支持一次性添加多个`手术查询文件`，程序会自动读取并整合所有文件中的床号信息，轻松应对数据分散在不同表格中的情况。
   * **强大的数据清洗与匹配**: 能够自动处理两个Excel文件中因格式差异（如住院号`0123` vs `123`）或隐藏字符（如不可见空格）导致的数据不一致问题，极大地提高了床号匹配的成功率。
   * **智能标题行检测**: 程序能自动识别Excel文件中真正的标题行在第几行，无视文件顶部的任何大标题或空行，确保数据读取的准确性。
@@ -49,7 +49,7 @@
 * `unknown_bed_placeholder`: 定义在Word文档内容中，当床号未知时显示的占位符。
 * `unknown_bed_filename_suffix`: 定义当床号未知时，在文件名末尾添加的后缀。
 * `column_mapping`: **核心配置**。定义了程序内部字段名与您Excel文件中列名的对应关系。如果您的Excel列名有变，只需修改此处的中文部分即可。
-* `required_internal_keys`: 定义了哪些字段是生成文档所必需的。
+* `required_patient_cols` / `required_surgery_cols`: 定义了哪些字段是生成文档所必需的。
 * `template_placeholders`: 定义了Word模板中的占位符与程序内部字段的对应关系。
 
 ## 👨‍💻 贡献者

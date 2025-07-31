@@ -1,6 +1,6 @@
 # 自动化程序编译与打包指南
 
-本指南旨在为 "日间手术随访表生成系统 (Polars版)" 提供清晰的安装、运行及打包说明。
+本指南旨在为 "日间手术随访表生成系统 (SQLite版)" 提供清晰的安装、运行及打包说明。
 
 ---
 
@@ -44,9 +44,9 @@ pip install -r requirements.txt
 
 > **提示**: `requirements.txt` 文件应包含以下内容，这已是运行程序的最小依赖集合:
 > ```text
-> polars
+> openpyxl
+> xlrd
 > python-docx
-> fastexcel
 > ```
 
 ### 3. 运行程序
@@ -81,7 +81,7 @@ pyinstaller --onefile --windowed --icon="app.ico" --name="day_durgery_form_autom
 * `--icon`: 为生成的 `.exe` 文件指定一个图标 (请将 `app.ico` 文件放在同目录下)。
 * `--name`: 指定生成的可执行文件的名称。
 
-打包成功后，在生成的 `dist` 文件夹中即可找到 `Day Surgery Form Automator.exe` 文件。
+打包成功后，在生成的 `dist` 文件夹中即可找到最终的 `.exe` 文件。
 
 ### 方式二：使用 Nuitka (性能更优)
 
@@ -106,14 +106,13 @@ python -m nuitka `
   --onefile `
   --windows-console-mode=disable `
   --enable-plugin=tk-inter `
-  --include-module=polars,docx,fastexcel `
   --onefile-windows-splash-screen-image=splash.png `
   --windows-icon-from-ico=app.ico `
   --mingw64 `
   --output-dir=build `
   --output-filename="day_durgery_form_automator.exe" `
-  --file-version=6.4.1.0 `
-  --product-version=6.4 `
+  --file-version=7.0.1.0 `
+  --product-version=7.0 `
   --company-name="Danyang People's Hospital" `
   --product-name="Day Surgery Form Automator" `
   --copyright="© 2025 gujiangjiang" `
@@ -127,17 +126,16 @@ python -m nuitka ^
   --onefile ^
   --windows-console-mode=disable ^
   --enable-plugin=tk-inter ^
-  --include-module=polars,docx,fastexcel ^
   --onefile-windows-splash-screen-image=splash.png ^
   --windows-icon-from-ico=app.ico ^
   --mingw64 ^
   --output-dir=build ^
   --output-filename="day_durgery_form_automator.exe" ^
-  --file-version=6.4.1.0 ^
-  --product-version=6.4 ^
-  --company-name="Danyang People's Hospital" ^
-  --product-name="Day Surgery Form Automator" ^
-  --copyright="© 2025 gujiangjiang" ^
+  --file-version=7.0.1.0 `
+  --product-version=7.0 `
+  --company-name="Danyang People's Hospital" `
+  --product-name="Day Surgery Form Automator" `
+  --copyright="© 2025 gujiangjiang" `
   day_durgery_form_automator.py
 ```
 
@@ -148,7 +146,6 @@ python -m nuitka ^
 * `--onefile`: 打包为单文件。
 * `--windows-console-mode=disable`: 禁用控制台窗口 (同 `pyinstaller --windowed`)。
 * `--enable-plugin=tk-inter`: 如果您的程序使用了 `tkinter` 图形库，需启用此插件。
-* `--include-module=...`: 强制包含 Nuitka 可能检测不到的库。对于 Polars 版本，我们明确加入 `polars`, `docx`, 和 `fastexcel`。
 * `--onefile-windows-splash-screen-image`: 为程序启动时添加一个闪屏/加载图片。
 * `--windows-icon-from-ico`: 指定程序图标。
 * `--mingw64`: (可选) 明确指定使用 MinGW64 编译器。
