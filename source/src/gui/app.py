@@ -17,6 +17,8 @@ class App:
     def __init__(self, root):
         self.root = root
         self.surgery_query_files = []
+        self.generation_thread = None
+        self.generator_instance = None
         
         self.scaling_factor = self._get_scaling_factor()
         
@@ -27,8 +29,10 @@ class App:
     def _get_scaling_factor(self):
         """获取屏幕缩放比例"""
         try:
+            # 使用 Tk 8.6+ 的方法来获取DPI
             dpi = self.root.winfo_fpixels('1i')
             scaling = dpi / 96.0
+            # 对缩放比例进行合理性检查
             if scaling < 0.75: return 1.0
             return scaling
         except Exception:
@@ -138,8 +142,12 @@ class App:
 
         control_frame = ttk.LabelFrame(left_bottom_container, text="步骤2: 开始生成", padding=10)
         control_frame.pack(fill=tk.X)
+        
+        # 为不同状态的按钮定义样式
         style.configure("Accent.TButton", foreground="white", background="#0078D7", font=self.font_button)
-        self.start_button = ttk.Button(control_frame, text="开始生成", command=self.start_generation, style="Accent.TButton")
+        style.configure("Stop.TButton", foreground="white", background="#E81123", font=self.font_button)
+        
+        self.start_button = ttk.Button(control_frame, text="开始生成", command=self.toggle_generation, style="Accent.TButton")
         self.start_button.pack(pady=5, ipady=5, ipadx=20)
 
         progress_frame = ttk.LabelFrame(right_panel, text="处理进度与日志", padding=10)
@@ -219,28 +227,41 @@ class App:
     def update_progress(self, value):
         self.root.after(0, lambda: self.progress_bar.config(value=value))
 
-    def start_generation(self):
-        """开始生成文档"""
-        if not all([self.excel_path_var.get(), self.template_path_var.get(), self.output_dir_var.get()]):
-            messagebox.showwarning("信息不全", "请先选择好“出院患者列表”、“Word模板”和“输出文件夹”。")
-            return
-        if not self.surgery_query_files:
-            if not messagebox.askyesno("确认操作", "您没有选择任何“手术查询文件”。\n程序将无法补充床号，是否继续？"):
+    def toggle_generation(self):
+        """根据当前状态，开始或停止文档生成过程。"""
+        if self.generation_thread and self.generation_thread.is_alive():
+            # 如果线程正在运行，则发送停止信号
+            if self.generator_instance:
+                self.generator_instance.stop()
+            self.start_button.config(state='disabled', text="正在停止...")
+        else:
+            # 如果没有线程在运行，则开始新的生成过程
+            if not all([self.excel_path_var.get(), self.template_path_var.get(), self.output_dir_var.get()]):
+                messagebox.showwarning("信息不全", "请先选择好“出院患者列表”、“Word模板”和“输出文件夹”。")
                 return
-        
-        self.start_button.config(state='disabled')
-        self.progress_bar['value'] = 0
-        self.log_text.config(state='normal'); self.log_text.delete('1.0', tk.END); self.log_text.config(state='disabled')
-        
-        generator = DocumentGenerator(
-            excel_path=self.excel_path_var.get(), 
-            surgery_query_paths=self.surgery_query_files,
-            template_path=self.template_path_var.get(), 
-            output_dir=self.output_dir_var.get(), 
-            app_instance=self
-        )
-        threading.Thread(target=generator.run, daemon=True).start()
+            if not self.surgery_query_files:
+                if not messagebox.askyesno("确认操作", "您没有选择任何“手术查询文件”。\n程序将无法补充床号，是否继续？"):
+                    return
+            
+            self.start_button.config(text="停止生成", style="Stop.TButton")
+            self.progress_bar['value'] = 0
+            self.log_text.config(state='normal'); self.log_text.delete('1.0', tk.END); self.log_text.config(state='disabled')
+            
+            self.generator_instance = DocumentGenerator(
+                excel_path=self.excel_path_var.get(), 
+                surgery_query_paths=self.surgery_query_files,
+                template_path=self.template_path_var.get(), 
+                output_dir=self.output_dir_var.get(), 
+                app_instance=self
+            )
+            self.generation_thread = threading.Thread(target=self.generator_instance.run, daemon=True)
+            self.generation_thread.start()
 
     def generation_finished(self):
-        """生成结束后恢复按钮状态"""
-        self.root.after(0, lambda: self.start_button.config(state='normal'))
+        """当生成线程结束（无论是正常完成还是被停止）时，由线程本身调用此方法来更新UI。"""
+        def _update_ui():
+            self.start_button.config(state='normal', text="开始生成", style="Accent.TButton")
+            self.generation_thread = None
+            self.generator_instance = None
+        
+        self.root.after(0, _update_ui)

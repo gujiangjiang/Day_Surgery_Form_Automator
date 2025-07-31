@@ -5,6 +5,7 @@
 """
 import os
 import traceback
+import threading
 from tkinter import messagebox
 from collections import deque
 
@@ -21,6 +22,12 @@ class DocumentGenerator:
         self.template_path = template_path
         self.output_dir = output_dir
         self.app = app_instance
+        self.stop_event = threading.Event()
+
+    def stop(self):
+        """设置停止事件，中断生成过程。"""
+        self.stop_event.set()
+        self.log("正在发送停止信号...", "warning")
 
     def log(self, message, level="info"):
         self.app.log_message(message, level)
@@ -32,11 +39,12 @@ class DocumentGenerator:
         """加载所有手术查询文件数据到数据库"""
         self.log("开始处理手术查询文件...")
         if not self.surgery_query_paths:
-            self.log("未选择任何手术查询文件，跳过床号补充步骤。", "info") # 调整为info级别
+            self.log("未选择任何手术查询文件，跳过床号补充步骤。", "info")
             return
 
         total_records_added = 0
         for file_path in self.surgery_query_paths:
+            if self.stop_event.is_set(): return
             col_map, header_row_idx, _ = excel_reader.find_header_and_map_cols(file_path, CONFIG['required_surgery_cols'], self.log)
             if col_map:
                 records = list(excel_reader.read_surgery_data(file_path, col_map, header_row_idx, self.log))
@@ -54,14 +62,11 @@ class DocumentGenerator:
             messagebox.showerror("读取失败", f"在 '出院患者列表' 文件中无法自动定位标题行。\n请确保文件包含以下列: {', '.join([CONFIG['column_mapping'][k] for k in CONFIG['required_patient_cols']])}")
             return False
             
-        # --- 优化日志逻辑 ---
         if 'bed_number' not in col_map:
-            # 仅在提供了手术查询文件时，才提示“将尝试补充”
             if self.surgery_query_paths:
                 self.log("警告：主Excel文件中未找到“床号”列。将尝试从手术查询文件补充。", "warning")
             else:
                 self.log("警告：主Excel文件中未找到“床号”列，床号信息可能为空。", "warning")
-        # ----------------------
 
         records = list(excel_reader.read_patient_data(self.excel_path, col_map, header_row_idx, self.log))
         count = db_manager.load_patient_data(records)
@@ -81,12 +86,15 @@ class DocumentGenerator:
             db_manager = DatabaseManager(self.log)
 
             self._load_surgery_data(db_manager)
-            
+            if self.stop_event.is_set(): return
+
             if not self._load_patient_data(db_manager):
                 messagebox.showerror("错误", "无法从'出院患者列表'加载任何有效数据，程序终止。")
                 return
+            if self.stop_event.is_set(): return
 
             final_patient_rows = db_manager.query_final_data()
+            if self.stop_event.is_set(): return
 
             if not final_patient_rows:
                 msg = f"错误：未找到住院天数 <= {CONFIG['day_surgery_max_days']} 天的记录。"
@@ -100,6 +108,9 @@ class DocumentGenerator:
             unmatched_patients = deque()
             
             for index, row in enumerate(final_patient_rows):
+                if self.stop_event.is_set():
+                    self.log("生成过程已由用户手动停止。", "warning")
+                    break
                 try:
                     is_unmatched, filename = doc_writer.generate_single_document(row, self.template_path, self.output_dir)
                     self.log(f"已生成: {filename}")
@@ -110,25 +121,27 @@ class DocumentGenerator:
                     self.log(f"处理行 {index + 1} (姓名: {row['name']}) 时发生错误: {e}", "error")
                 self.update_progress((index + 1) / total_rows * 100)
             
-            self.app.log_raw("="*30)
-            self.log(f"处理完成！成功生成 {success_count} 份文档。")
-            
-            if unmatched_patients:
-                summary_message = f"注意：有 {len(unmatched_patients)} 位符合条件的日间手术患者未能匹配到床号：\n\n" + "\n".join(unmatched_patients)
+            if not self.stop_event.is_set():
                 self.app.log_raw("="*30)
-                self.log("以下日间手术患者未能匹配到床号:", "warning")
-                for patient_info in unmatched_patients:
-                    self.log(f"- {patient_info}", "warning")
-                messagebox.showwarning("匹配提醒", summary_message)
-            
-            final_message = f"成功生成 {success_count} 份随访表。\n" \
-                          f"文件保存在: {self.output_dir}"
-            messagebox.showinfo("完成", final_message)
+                self.log(f"处理完成！成功生成 {success_count} 份文档。")
+                
+                if unmatched_patients:
+                    summary_message = f"注意：有 {len(unmatched_patients)} 位符合条件的日间手术患者未能匹配到床号：\n\n" + "\n".join(unmatched_patients)
+                    self.app.log_raw("="*30)
+                    self.log("以下日间手术患者未能匹配到床号:", "warning")
+                    for patient_info in unmatched_patients:
+                        self.log(f"- {patient_info}", "warning")
+                    messagebox.showwarning("匹配提醒", summary_message)
+                
+                final_message = f"成功生成 {success_count} 份随访表。\n" \
+                              f"文件保存在: {self.output_dir}"
+                messagebox.showinfo("完成", final_message)
 
         except Exception as e:
-            self.log(f"发生严重错误: {e}", "error")
-            self.log(traceback.format_exc(), "error")
-            messagebox.showerror("严重错误", f"处理过程中发生严重错误：\n{e}")
+            if not self.stop_event.is_set():
+                self.log(f"发生严重错误: {e}", "error")
+                self.log(traceback.format_exc(), "error")
+                messagebox.showerror("严重错误", f"处理过程中发生严重错误：\n{e}")
         finally:
             if db_manager:
                 db_manager.close()
