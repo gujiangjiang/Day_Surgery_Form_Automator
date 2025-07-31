@@ -2,7 +2,7 @@
 # (日间手术随访表生成系统)
 
 [![Python](https://img.shields.io/badge/Python-3.7+-blue.svg)](https://www.python.org/)
-[![Version](https://img.shields.io/badge/Version-7.0-brightgreen.svg)]()
+[![Version](https://img.shields.io/badge/Version-7.1-brightgreen.svg)]()
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
 这是一款功能强大且用户友好的医疗文档自动化工具，专为简化“日间手术随访表”的生成流程而设计。**V7.x 版本为第二次核心重构，采用 Python 内置的 `SQLite` 数据库替代 `Polars` 作为数据处理引擎，在保持高效性能的同时，实现了依赖的极致轻量化，使得最终打包的程序体积大幅减小。**
