@@ -10,6 +10,12 @@ CONFIG = {
     "unknown_bed_placeholder": "（手动填写）", # Word内容中的床号未知占位符
     "unknown_bed_filename_suffix": "（床号未知）",   # 文件名中的床号未知后缀
 
+    # --- 欢迎语 ---
+    "welcome_message": "欢迎使用日间手术随访表生成系统！",
+    "welcome_tips": "提示：\n1、点击各项右侧的“选项”按钮来选择文件或查看模板。\n2、如果未选择Word模板，程序将使用内置模板。\n3、处理过程中可随时点击“停止生成”按钮中断任务。",
+    "log_separator": "----------------",
+    # --------------------
+
     # --- 内置模板文件名 ---
     "discharge_template_name": "出院患者列表模板.xls",
     "surgery_template_name": "手术查询模板.xlsx",

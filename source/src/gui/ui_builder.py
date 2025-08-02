@@ -47,7 +47,7 @@ def create_ui(app):
     
     # --- 分割线位置控制 (已恢复) ---
     s = app.scaling_factor
-    sash_default = int(420 * s)
+    sash_default = int(410 * s)
     sash_min = int(320 * s)
     sash_max = int(520 * s)
 
@@ -56,13 +56,8 @@ def create_ui(app):
         main_pane.unbind("<Configure>")
     
     def limit_sash_movement(event):
-        if event.x < sash_min:
-            main_pane.sashpos(0, sash_min)
-            return "break"
-        if event.x > sash_max:
-            main_pane.sashpos(0, sash_max)
-            return "break"
-
+        if event.x < sash_min: main_pane.sashpos(0, sash_min); return "break"
+        if event.x > sash_max: main_pane.sashpos(0, sash_max); return "break"
     main_pane.bind("<Configure>", set_initial_sash)
     main_pane.bind("<B1-Motion>", limit_sash_movement)
     # ---------------------------------
@@ -71,7 +66,12 @@ def create_ui(app):
     file_frame = ttk.LabelFrame(left_panel, text="步骤1: 选择文件和路径", padding=5)
     file_frame.pack(fill=tk.BOTH, expand=True) 
     
-    discharge_menu_items = [("查看模板", lambda: app.open_template('discharge')), ("选择文件", app.select_excel_file)]
+    discharge_menu_items = [
+        ("查看模板", lambda: app.open_template('discharge')),
+        ("选择文件", app.select_excel_file),
+        ("---", None),
+        ("清空选择", app.clear_excel_selection)
+    ]
     _create_dropdown_selector(file_frame, "出院患者列表:", app.excel_display_var, discharge_menu_items, app.font_normal)
     
     # --- 手术查询文件 ---
@@ -83,19 +83,30 @@ def create_ui(app):
     surgery_buttons_frame.pack(side=tk.LEFT, fill=tk.Y, anchor='n')
     
     # 手术查询的下拉菜单按钮
-    surgery_menubutton = ttk.Menubutton(surgery_buttons_frame, text="添加...", width=8)
+    surgery_menubutton = ttk.Menubutton(surgery_buttons_frame, text="选项...", width=8)
     surgery_menu = tk.Menu(surgery_menubutton, tearoff=False)
     surgery_menu.add_command(label="查看模板", command=lambda: app.open_template('surgery'))
     surgery_menu.add_command(label="添加文件", command=app.select_surgery_query_files)
+    surgery_menu.add_separator()
+    surgery_menu.add_command(label="清空列表", command=app.clear_surgery_query_files)
     surgery_menubutton.config(menu=surgery_menu)
     surgery_menubutton.pack(fill=tk.X, pady=1)
     
-    ttk.Button(surgery_buttons_frame, text="清空列表", command=app.clear_surgery_query_files, width=8).pack(fill=tk.X, pady=1)
-    
-    word_menu_items = [("查看模板", lambda: app.open_template('follow_up')), ("选择文件", app.select_template_file), ("使用内置模板", app.use_builtin_word_template)]
+    word_menu_items = [
+        ("查看模板", lambda: app.open_template('follow_up')),
+        ("选择文件", app.select_template_file),
+        ("使用内置模板", app.use_builtin_word_template),
+        ("---", None),
+        ("清空选择", app.clear_template_selection)
+    ]
     _create_dropdown_selector(file_frame, "Word模板:", app.template_display_var, word_menu_items, app.font_normal)
     
-    _create_dropdown_selector(file_frame, "输出文件夹:", app.output_dir_display_var, [("选择文件夹", app.select_output_dir)], app.font_normal)
+    output_dir_items = [
+        ("选择文件夹", app.select_output_dir),
+        ("---", None),
+        ("清空选择", app.clear_output_dir_selection)
+    ]
+    _create_dropdown_selector(file_frame, "输出文件夹:", app.output_dir_display_var, output_dir_items, app.font_normal)
     
     # --- 控制和进度条 ---
     left_bottom_container = ttk.Frame(left_panel)
@@ -123,17 +134,30 @@ def create_ui(app):
 def _create_dropdown_selector(parent, label_text, string_var, menu_items, font):
     """
     创建带有下拉菜单按钮的文件/目录选择器行。
+    使用grid布局管理器来确保输入框可以正确缩放。
     """
     row_frame = ttk.Frame(parent)
     row_frame.pack(fill=tk.X, expand=True, pady=1)
-    ttk.Label(row_frame, text=label_text, width=12, font=font).pack(side=tk.LEFT)
-    ttk.Entry(row_frame, textvariable=string_var, state='readonly', font=font).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
+
+    # --- 布局修复 ---
+    # 配置grid的列权重，让第1列（输入框）可以伸缩
+    row_frame.columnconfigure(1, weight=1)
+
+    label = ttk.Label(row_frame, text=label_text, width=12, font=font)
+    label.grid(row=0, column=0, sticky='w', padx=(0, 5))
+    
+    entry = ttk.Entry(row_frame, textvariable=string_var, state='readonly', font=font)
+    # 使用 sticky='ew' 让输入框水平填充其单元格
+    entry.grid(row=0, column=1, sticky='ew')
     
     menubutton = ttk.Menubutton(row_frame, text="选项...", width=8)
-    menu = tk.Menu(menubutton, tearoff=False)
+    menubutton.grid(row=0, column=2, sticky='e', padx=(5, 0))
+    # -----------------
     
+    menu = tk.Menu(menubutton, tearoff=False)
     for label, command in menu_items:
-        menu.add_command(label=label, command=command)
-        
+        if label == "---":
+            menu.add_separator()
+        else:
+            menu.add_command(label=label, command=command)
     menubutton.config(menu=menu)
-    menubutton.pack(side=tk.RIGHT)

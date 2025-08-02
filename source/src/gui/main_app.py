@@ -43,6 +43,7 @@ class MainApp:
         # --- 构建UI ---
         # 将UI构建委托给ui_builder模块
         ui_builder.create_ui(self)
+        self._display_welcome_message()
 
     def _get_scaling_factor(self):
         """获取屏幕缩放比例"""
@@ -78,6 +79,14 @@ class MainApp:
         
         self.root.geometry(f"{width}x{height}+{pos_x}+{pos_y}") 
         self.root.resizable(False, False)
+
+    def _display_welcome_message(self):
+        """在日志区显示欢迎和提示信息。"""
+        separator = CONFIG.get("log_separator", "---")
+        self.log_raw(CONFIG.get("welcome_message", ""))
+        self.log_raw(separator)
+        self.log_raw(CONFIG.get("welcome_tips", ""), level="info")
+        self.log_raw(separator)
 
     def open_template(self, template_type):
         """将模板复制到临时的只读文件并打开它。"""
@@ -115,6 +124,11 @@ class MainApp:
             self.excel_full_path = path
             self.excel_display_var.set(os.path.basename(path))
             self.log_message(f"已选择出院患者列表: {path}")
+    
+    def clear_excel_selection(self):
+        self.excel_full_path = ""
+        self.excel_display_var.set("")
+        self.log_message("已清空出院患者列表选择。")
 
     def select_surgery_query_files(self):
         paths = filedialog.askopenfilenames(title="选择一个或多个手术查询文件", filetypes=[("Excel文件", "*.xlsx *.xls")])
@@ -142,6 +156,11 @@ class MainApp:
         self.template_full_path = "" # 清空外部路径
         self.template_display_var.set("[使用内置模板]")
         self.log_message("已选择使用内置Word模板。")
+        
+    def clear_template_selection(self):
+        self.template_full_path = ""
+        self.template_display_var.set("")
+        self.log_message("已清空Word模板选择。")
 
     def select_output_dir(self):
         path = filedialog.askdirectory(title="选择保存位置")
@@ -149,6 +168,11 @@ class MainApp:
             self.output_dir_full_path = path
             self.output_dir_display_var.set(os.path.basename(path))
             self.log_message(f"已选择输出文件夹: {path}")
+            
+    def clear_output_dir_selection(self):
+        self.output_dir_full_path = ""
+        self.output_dir_display_var.set("")
+        self.log_message("已清空输出文件夹选择。")
 
     def toggle_generation(self):
         """根据当前状态，开始或停止文档生成过程。"""
@@ -169,9 +193,12 @@ class MainApp:
                     messagebox.showerror("错误", f"内置Word模板未找到！\n请确保 '{CONFIG['follow_up_template_name']}' 文件存在于 'templates' 文件夹中。")
                     return
             
-            self.start_button.config(text="停止生成", style="Stop.TButton")
+            # --- 优化：不清空日志，只重置进度条并添加分隔符 ---
             self.progress_bar['value'] = 0
-            self.log_text.config(state='normal'); self.log_text.delete('1.0', tk.END); self.log_text.config(state='disabled')
+            self.log_raw(CONFIG.get("log_separator", "---"))
+            # ---------------------------------------------
+            
+            self.start_button.config(text="停止生成", style="Stop.TButton")
             
             self.generator_instance = DocumentGenerator(
                 excel_path=self.excel_full_path, 
@@ -200,24 +227,24 @@ class MainApp:
             return
         def append():
             self.log_text.config(state='normal')
-            lines = str(msg).split('\n')
             timestamp = datetime.now().strftime('%H:%M:%S')
-            for line in lines:
-                if line.strip():
-                    full_log_line = f"{timestamp} - {line}\n"
-                    if level in self.log_text_tags:
-                        self.log_text.insert(tk.END, full_log_line, (level,))
-                    else:
-                        self.log_text.insert(tk.END, full_log_line)
+            full_log_line = f"{timestamp} - {msg}\n"
+            if level in self.log_text_tags:
+                self.log_text.insert(tk.END, full_log_line, (level,))
+            else:
+                self.log_text.insert(tk.END, full_log_line)
             self.log_text.config(state='disabled')
             self.log_text.see(tk.END)
         self.root.after(0, append)
 
-    def log_raw(self, msg):
-        """向日志框中添加不带时间戳的原始文本。"""
+    def log_raw(self, msg, level=None):
+        if not msg or not str(msg).strip(): return
         def append():
             self.log_text.config(state='normal')
-            self.log_text.insert(tk.END, str(msg) + '\n')
+            if level and level in self.log_text_tags:
+                self.log_text.insert(tk.END, str(msg) + '\n', (level,))
+            else:
+                self.log_text.insert(tk.END, str(msg) + '\n')
             self.log_text.config(state='disabled')
             self.log_text.see(tk.END)
         self.root.after(0, append)
