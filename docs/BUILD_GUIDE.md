@@ -74,11 +74,13 @@ pip install pyinstaller
 
 **2. 执行打包命令**
 ```bash
-pyinstaller --onefile --windowed --icon="assets/app.ico" --add-data="assets;assets" --name="day_durgery_form_automator" main.py
+pyinstaller --onefile --windowed --icon="assets/app.ico" --add-data="assets;assets" --add-data="templates;templates" --name="day_durgery_form_automator" main.py
 ```
 * `--onefile`: 将所有依赖和脚本打包成一个独立的 `.exe` 文件。
 * `--windowed`: 运行程序时不显示黑色的命令行窗口 (适用于图形界面程序)。
-* `--icon`: 为生成的 `.exe` 文件指定一个图标 (请将 `app.ico` 文件放在同目录下)。
+* `--icon`: 为生成的 `.exe` 文件指定一个图标 (请将 `app.ico` 文件放在assets目录下)。
+* `--add-data="assets;assets"`: 将 `assets` 文件夹打包进去。
+* `--add-data="templates;templates"`: 将 `templates` 文件夹打包进去。
 * `--name`: 指定生成的可执行文件的名称。
 
 打包成功后，在生成的 `dist` 文件夹中即可找到最终的 `.exe` 文件。
@@ -98,7 +100,7 @@ pip install nuitka
 如果您目前处于开发状态，希望快速编译并运行，请复制并执行以下命令：
 
 ```batch
-python -m nuitka --run --windows-console-mode=disable --include-data-dir=./assets=assets --mingw64 --output-dir=dev main.py
+python -m nuitka --run --windows-console-mode=disable --include-data-dir=./assets=assets --include-data-dir=./templates=templates --mingw64 --output-dir=dev main.py
 ```
 
 **3. 执行打包命令**
@@ -116,11 +118,12 @@ python -m nuitka `
   --windows-console-mode=disable `
   --enable-plugin=tk-inter `
   --include-data-dir=./assets=assets `
+  --include-data-dir=./templates=templates `
   --windows-icon-from-ico=assets/app.ico `
   --mingw64 `
   --output-dir=build `
   --output-filename="day_durgery_form_automator.exe" `
-  --file-version=8.2.9.1 `
+  --file-version=8.2.10.1 `
   --product-version=8.2 `
   --company-name="Danyang People's Hospital" `
   --product-name="Day Surgery Form Automator" `
@@ -137,11 +140,12 @@ python -m nuitka ^
   --windows-console-mode=disable ^
   --enable-plugin=tk-inter ^
   --include-data-dir=./assets=assets ^
+  --include-data-dir=./templates=templates ^
   --windows-icon-from-ico=assets/app.ico ^
   --mingw64 ^
   --output-dir=build ^
   --output-filename="day_durgery_form_automator.exe" ^
-  --file-version=8.2.9.1 `
+  --file-version=8.2.10.1 `
   --product-version=8.2 `
   --company-name="Danyang People's Hospital" `
   --product-name="Day Surgery Form Automator" `
@@ -157,7 +161,8 @@ python -m nuitka ^
 * `--onefile`: 打包为单文件。
 * `--windows-console-mode=disable`: 禁用控制台窗口 (同 `pyinstaller --windowed`)。
 * `--enable-plugin=tk-inter`: 如果您的程序使用了 `tkinter` 图形库，需启用此插件。
-* `--include-data-dir=./assets=assets`: **关键参数**。将 `assets` 文件夹打包进去。
+* `--include-data-dir=./assets=assets`: 将 `assets` 文件夹打包进去。
+* `--include-data-dir=./templates=templates`: 将 `templates` 文件夹打包进去。
 * `--windows-icon-from-ico`: 指定程序图标。
 * `--mingw64`: (可选) 明确指定使用 MinGW64 编译器。
 * `--output-dir`: 指定输出文件夹的名称。

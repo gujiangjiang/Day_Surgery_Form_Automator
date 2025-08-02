@@ -74,8 +74,8 @@ def create_ui(app):
     file_frame.pack(fill=tk.BOTH, expand=True) 
     
     discharge_menu_items = [
-        ("查看模板", lambda: app.open_template('discharge')),
         ("选择文件", app.select_excel_file),
+        ("查看模板", lambda: app.open_template('discharge')),
         ("---", None),
         ("清空选择", app.clear_excel_selection)
     ]
@@ -92,16 +92,16 @@ def create_ui(app):
     # 手术查询的下拉菜单按钮
     surgery_menubutton = ttk.Menubutton(surgery_buttons_frame, text="选项...", width=8)
     surgery_menu = tk.Menu(surgery_menubutton, tearoff=False)
-    surgery_menu.add_command(label="查看模板", command=lambda: app.open_template('surgery'))
     surgery_menu.add_command(label="添加文件", command=app.select_surgery_query_files)
+    surgery_menu.add_command(label="查看模板", command=lambda: app.open_template('surgery'))
     surgery_menu.add_separator()
     surgery_menu.add_command(label="清空列表", command=app.clear_surgery_query_files)
     surgery_menubutton.config(menu=surgery_menu)
     surgery_menubutton.pack(fill=tk.X, pady=1)
     
     word_menu_items = [
-        ("查看模板", lambda: app.open_template('follow_up')),
         ("选择文件", app.select_template_file),
+        ("查看模板", lambda: app.open_template('follow_up')),
         ("使用内置模板", app.use_builtin_word_template),
         ("---", None),
         ("清空选择", app.clear_template_selection)
