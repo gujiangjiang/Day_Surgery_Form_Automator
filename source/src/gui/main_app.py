@@ -91,6 +91,7 @@ class MainApp:
             else:
                 messagebox.showerror("错误", f"模板文件未找到！\n请确保 '{template_name}' 文件存在于 'templates' 文件夹中。")
         except Exception as e:
+            messagebox.showerror("打开失败", f"无法打开模板文件，请确保您已安装对应的办公软件。\n错误: {e}")
 
     def select_excel_file(self):
         path = filedialog.askopenfilename(title="选择出院患者记录单", filetypes=[("Excel文件", "*.xlsx *.xls")])
@@ -112,6 +113,10 @@ class MainApp:
         path = filedialog.askopenfilename(title="选择随访表模板", filetypes=[("Word模板", "*.docx")])
         if path: self.template_path_var.set(path)
 
+    def use_builtin_word_template(self):
+        """设置UI以表明正在使用内置模板。"""
+        self.template_path_var.set("[使用内置模板]")
+
     def select_output_dir(self):
         path = filedialog.askdirectory(title="选择保存位置")
         if path: self.output_dir_var.set(path)
@@ -124,16 +129,17 @@ class MainApp:
             self.start_button.config(state='disabled', text="正在停止...")
         else:
             if not all([self.excel_path_var.get(), self.output_dir_var.get()]):
+                messagebox.showwarning("信息不全", "请先选择好“出院患者列表”和“输出文件夹”。")
                 return
-                    return
             
             template_path = self.template_path_var.get()
-            if not template_path:
-                self.log_message("未选择外部Word模板，将使用内置模板。", "warning")
+            if not template_path or template_path == "[使用内置模板]":
+                self.log_message("未选择外部Word模板或已指定使用内置模板，将加载内置模板。", "info")
                 template_path = os.path.join(self.base_path, 'templates', CONFIG['follow_up_template_name'])
                 if not os.path.exists(template_path):
                     messagebox.showerror("错误", f"内置Word模板未找到！\n请确保 '{CONFIG['follow_up_template_name']}' 文件存在于 'templates' 文件夹中。")
                     return
+            
             self.start_button.config(text="停止生成", style="Stop.TButton")
             self.progress_bar['value'] = 0
             self.log_text.config(state='normal'); self.log_text.delete('1.0', tk.END); self.log_text.config(state='disabled')
@@ -141,6 +147,7 @@ class MainApp:
             self.generator_instance = DocumentGenerator(
                 excel_path=self.excel_path_var.get(), 
                 surgery_query_paths=self.surgery_query_files,
+                template_path=template_path, 
                 output_dir=self.output_dir_var.get(), 
                 app_instance=self
             )
