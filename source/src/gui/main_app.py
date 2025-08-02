@@ -195,46 +195,57 @@ class MainApp:
                 self.generator_instance.stop()
             self.start_button.config(state='disabled', text="正在停止...")
         else:
-            # --- 优化：检查所有必填项 ---
             if not self.excel_full_path:
-                messagebox.showwarning("信息不全", "请选择“出院患者列表”。")
+                self.show_message("warning", "信息不全", "请选择“出院患者列表”。")
                 return
             if not self.output_dir_full_path:
-                messagebox.showwarning("信息不全", "请选择“输出文件夹”。")
+                self.show_message("warning", "信息不全", "请选择“输出文件夹”。")
                 return
             if not self.template_full_path and self.template_display_var.get() != "[使用内置模板]":
-                messagebox.showwarning("信息不全", "请选择一个Word模板或点击“使用内置模板”。")
+                self.show_message("warning", "信息不全", "请选择一个Word模板或点击“使用内置模板”。")
                 return
-            # ---------------------------
 
             template_path = ""
             if self.template_display_var.get() == "[使用内置模板]":
                 template_path = os.path.join(self.base_path, 'templates', CONFIG['follow_up_template_name'])
                 if not os.path.exists(template_path):
-                    messagebox.showerror("错误", f"内置Word模板未找到！\n请确保 '{CONFIG['follow_up_template_name']}' 文件存在于 'templates' 文件夹中。")
+                    self.show_message("error", "错误", f"内置Word模板未找到！\n请确保 '{CONFIG['follow_up_template_name']}' 文件存在于 'templates' 文件夹中。")
                     return
             else:
                 template_path = self.template_full_path
             
-            # --- 优化：不清空日志，只重置进度条并添加分隔符 ---
             self.progress_bar['value'] = 0
             self.log(CONFIG.get("log_separator", "---"), add_timestamp=False)
-            # ---------------------------------------------
             
             self.start_button.config(text="停止生成", style="Stop.TButton")
             
+            # --- 解耦：使用回调函数替代传递整个app实例 ---
             self.generator_instance = DocumentGenerator(
                 excel_path=self.excel_full_path, 
                 surgery_query_paths=self.surgery_query_files,
                 template_path=template_path, 
-                output_dir=self.output_dir_full_path, 
-                app_instance=self
+                output_dir=self.output_dir_full_path,
+                log_callback=self.log,
+                progress_callback=self.update_progress,
+                completion_callback=self.generation_finished,
+                message_callback=self.show_message
             )
             self.generation_thread = threading.Thread(target=self.generator_instance.run, daemon=True)
             self.generation_thread.start()
 
-    # --- 与后台线程通信的方法 ---
-
+    def show_message(self, level, title, message):
+        """根据级别显示不同类型的消息框，确保线程安全。"""
+        def _show():
+            if level == "error":
+                messagebox.showerror(title, message)
+            elif level == "warning":
+                messagebox.showwarning(title, message)
+            elif level == "info":
+                messagebox.showinfo(title, message)
+            else: # 默认为 info
+                messagebox.showinfo(title, message)
+        self.root.after(0, _show)
+        
     def generation_finished(self):
         """当生成线程结束时，由线程本身调用此方法来更新UI。"""
         def _update_ui():
@@ -256,7 +267,7 @@ class MainApp:
         """将日志内容导出到纯文本文件。"""
         log_content = self.log_text.get('1.0', tk.END)
         if not log_content.strip():
-            messagebox.showinfo("提示", "日志内容为空，无需导出。")
+            self.show_message("info", "提示", "日志内容为空，无需导出。")
             return
 
         default_filename = f"随访表生成日志_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
@@ -275,16 +286,16 @@ class MainApp:
             with open(filepath, 'w', encoding='utf-8') as f:
                 f.write(log_content)
             self.log(f"日志已成功导出到: {filepath}", level="info")
-            messagebox.showinfo("成功", f"日志已成功导出到:\n{filepath}")
+            self.show_message("info", "成功", f"日志已成功导出到:\n{filepath}")
         except Exception as e:
             self.log(f"导出日志失败: {e}", level="error")
-            messagebox.showerror("导出失败", f"无法将日志保存到指定位置。\n错误: {e}")
+            self.show_message("error", "导出失败", f"无法将日志保存到指定位置。\n错误: {e}")
 
     def log(self, msg, level=None, add_timestamp=True):
         """
         统一的日志记录方法。
         :param msg: 要记录的消息。
-        :param level: 日志级别 ('info', 'error', 'success', None)，用于文本着色。None为默认颜色。
+        :param level: 日志级别 ('info', 'error', 'warning', None)，用于文本着色。None为默认颜色。
         :param add_timestamp: 是否在消息前添加时间戳。
         """
         if not msg or not str(msg).strip():
