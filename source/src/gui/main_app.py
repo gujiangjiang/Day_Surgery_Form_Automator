@@ -86,6 +86,7 @@ class MainApp:
         self.log_raw(CONFIG.get("welcome_message", ""))
         self.log_raw(separator)
         self.log_raw(CONFIG.get("welcome_tips", ""), level="info")
+        self.log_raw(CONFIG.get("welcome_warning", ""), level="error") # 添加警告语
         self.log_raw(separator)
 
     def open_template(self, template_type):
