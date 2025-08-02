@@ -181,17 +181,26 @@ class MainApp:
                 self.generator_instance.stop()
             self.start_button.config(state='disabled', text="正在停止...")
         else:
-            if not all([self.excel_full_path, self.output_dir_full_path]):
-                messagebox.showwarning("信息不全", "请先选择好“出院患者列表”和“输出文件夹”。")
+            # --- 优化：检查所有必填项 ---
+            if not self.excel_full_path:
+                messagebox.showwarning("信息不全", "请选择“出院患者列表”。")
                 return
-            
-            template_path = self.template_full_path
-            if not template_path:
-                self.log_message("未选择外部Word模板或已指定使用内置模板，将加载内置模板。", "info")
+            if not self.output_dir_full_path:
+                messagebox.showwarning("信息不全", "请选择“输出文件夹”。")
+                return
+            if not self.template_full_path and self.template_display_var.get() != "[使用内置模板]":
+                messagebox.showwarning("信息不全", "请选择一个Word模板或点击“使用内置模板”。")
+                return
+            # ---------------------------
+
+            template_path = ""
+            if self.template_display_var.get() == "[使用内置模板]":
                 template_path = os.path.join(self.base_path, 'templates', CONFIG['follow_up_template_name'])
                 if not os.path.exists(template_path):
                     messagebox.showerror("错误", f"内置Word模板未找到！\n请确保 '{CONFIG['follow_up_template_name']}' 文件存在于 'templates' 文件夹中。")
                     return
+            else:
+                template_path = self.template_full_path
             
             # --- 优化：不清空日志，只重置进度条并添加分隔符 ---
             self.progress_bar['value'] = 0
