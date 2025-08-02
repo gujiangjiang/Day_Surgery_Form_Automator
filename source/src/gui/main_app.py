@@ -4,6 +4,7 @@ GUI应用主逻辑模块。
 此类负责窗口管理、状态维护和用户交互的响应。
 """
 import os
+import sys
 import threading
 from datetime import datetime
 import tkinter as tk
@@ -14,8 +15,9 @@ from ..core.logic import DocumentGenerator
 from . import ui_builder # 导入新的UI构建模块
 
 class MainApp:
-    def __init__(self, root):
+    def __init__(self, root, base_path): # 增加 base_path 参数
         self.root = root
+        self.base_path = base_path # 保存根目录路径
         
         # --- 状态和变量 ---
         self.surgery_query_files = []
@@ -69,7 +71,26 @@ class MainApp:
         self.root.geometry(f"{width}x{height}+{pos_x}+{pos_y}") 
         self.root.resizable(False, False)
 
-    # --- 用户交互方法 ---
+    def open_template(self, template_type):
+        """打开指定类型的模板文件。"""
+        template_map = {
+            'discharge': CONFIG['discharge_template_name'],
+            'surgery': CONFIG['surgery_template_name'],
+            'follow_up': CONFIG['follow_up_template_name']
+        }
+        template_name = template_map.get(template_type)
+        if not template_name:
+            messagebox.showerror("错误", "未知的模板类型。")
+            return
+
+        try:
+            # 使用正确的根目录来构建路径
+            path = os.path.join(self.base_path, 'templates', template_name)
+            if os.path.exists(path):
+                os.startfile(path)
+            else:
+                messagebox.showerror("错误", f"模板文件未找到！\n请确保 '{template_name}' 文件存在于 'templates' 文件夹中。")
+        except Exception as e:
 
     def select_excel_file(self):
         path = filedialog.askopenfilename(title="选择出院患者记录单", filetypes=[("Excel文件", "*.xlsx *.xls")])
@@ -102,13 +123,17 @@ class MainApp:
                 self.generator_instance.stop()
             self.start_button.config(state='disabled', text="正在停止...")
         else:
-            if not all([self.excel_path_var.get(), self.template_path_var.get(), self.output_dir_var.get()]):
-                messagebox.showwarning("信息不全", "请先选择好“出院患者列表”、“Word模板”和“输出文件夹”。")
+            if not all([self.excel_path_var.get(), self.output_dir_var.get()]):
                 return
-            if not self.surgery_query_files:
-                if not messagebox.askyesno("确认操作", "您没有选择任何“手术查询文件”。\n程序将无法补充床号，是否继续？"):
                     return
             
+            template_path = self.template_path_var.get()
+            if not template_path:
+                self.log_message("未选择外部Word模板，将使用内置模板。", "warning")
+                template_path = os.path.join(self.base_path, 'templates', CONFIG['follow_up_template_name'])
+                if not os.path.exists(template_path):
+                    messagebox.showerror("错误", f"内置Word模板未找到！\n请确保 '{CONFIG['follow_up_template_name']}' 文件存在于 'templates' 文件夹中。")
+                    return
             self.start_button.config(text="停止生成", style="Stop.TButton")
             self.progress_bar['value'] = 0
             self.log_text.config(state='normal'); self.log_text.delete('1.0', tk.END); self.log_text.config(state='disabled')
@@ -116,7 +141,6 @@ class MainApp:
             self.generator_instance = DocumentGenerator(
                 excel_path=self.excel_path_var.get(), 
                 surgery_query_paths=self.surgery_query_files,
-                template_path=self.template_path_var.get(), 
                 output_dir=self.output_dir_var.get(), 
                 app_instance=self
             )

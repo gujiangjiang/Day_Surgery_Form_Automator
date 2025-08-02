@@ -29,14 +29,20 @@ except ImportError:
 # 从src目录导入App主类
 from src.gui.main_app import MainApp
 
-def get_asset_path(relative_path):
+def get_base_path():
     """
-    获取资源的绝对路径。这可以确保无论从哪里运行脚本，
-    都能正确找到 assets 文件夹中的文件。
+    获取应用的根目录（即main.py所在的目录），
+    兼容源码运行和PyInstaller打包后的情况。
     """
-    # 获取脚本所在的目录
-    base_path = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(base_path, relative_path)
+    if getattr(sys, 'frozen', False):
+        # 如果程序被打包，base_path是可执行文件所在的目录
+        return os.path.dirname(sys.executable)
+    else:
+        # 如果从源码运行，base_path是main.py所在的目录
+        return os.path.dirname(os.path.abspath(__file__))
+
+# 在程序启动时就确定好根目录
+BASE_PATH = get_base_path()
 
 class SplashScreen(tk.Toplevel):
     """
@@ -102,26 +108,34 @@ def main():
     except Exception as e:
         print(f"设置DPI感知失败: {e}")
 
-    # 获取资源的绝对路径
-    icon_path = get_asset_path("assets/app.ico")
-    splash_path = get_asset_path("assets/splash.png")
+    # 使用修正后的逻辑来获取资源路径
+    icon_path = os.path.join(BASE_PATH, 'assets', 'app.ico')
+    splash_path = os.path.join(BASE_PATH, 'assets', 'splash.png')
 
     root = tk.Tk()
-    root.withdraw() # 保持主窗口在初始化时隐藏
+    root.withdraw()
 
-    # 1. 创建并显示我们自己的启动画面
-    splash = SplashScreen(root, splash_path)
+    # 检查资源文件是否存在
+    if not os.path.exists(splash_path):
+        messagebox.showwarning("资源缺失", f"启动画面文件 'splash.png' 未找到！\n请确保它位于 'assets' 文件夹中。")
+        splash = None # 确保splash变量存在
+    else:
+        splash = SplashScreen(root, splash_path)
 
-    try:
-        root.iconbitmap(icon_path)
-    except tk.TclError:
-        print(f"警告：未找到图标文件。尝试的路径为: {icon_path}")
+    if not os.path.exists(icon_path):
+         print(f"警告：图标文件 'app.ico' 未找到。")
+    else:
+        try:
+            root.iconbitmap(icon_path)
+        except tk.TclError:
+            print(f"警告：无法加载图标文件。")
 
-    # 2. 初始化主程序GUI
-    app_instance = MainApp(root)
+    # 将根目录路径传递给App实例，以便其他模块也能正确找到文件
+    app_instance = MainApp(root, base_path=BASE_PATH)
 
     def show_main_window():
-        splash.destroy()
+        if splash:
+            splash.destroy()
         root.deiconify()
         root.lift()
         root.focus_force()

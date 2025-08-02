@@ -4,11 +4,18 @@
 """
 
 CONFIG = {
-    "app_title": "日间手术随访表生成系统 V8.1",
+    "app_title": "日间手术随访表生成系统 V8.2",
     "day_surgery_max_days": 2,
     "follow_up_days": 7,  # 随访发生于出院后的天数
     "unknown_bed_placeholder": "（手动填写）", # Word内容中的床号未知占位符
     "unknown_bed_filename_suffix": "（床号未知）",   # 文件名中的床号未知后缀
+
+    # --- 内置模板文件名 ---
+    "discharge_template_name": "出院患者列表模板.xls",
+    "surgery_template_name": "手术查询模板.xlsx",
+    "follow_up_template_name": "日间手术随访登记表模板.docx",
+    # --------------------------
+
     "column_mapping": {
         # 内部键: Excel列名
         "name": "姓名", "department": "出院科室", "hospital_id": "住院号",
