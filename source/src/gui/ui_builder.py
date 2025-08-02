@@ -17,7 +17,14 @@ def create_ui(app):
         style.theme_use("clam")
     default_bg = style.lookup('TFrame', 'background')
     app.root.configure(bg=default_bg)
-    app.log_text_tags = {"warning": {"foreground": "orange"}, "error": {"foreground": "red"}}
+
+    #--- info日志样式 ---
+    app.log_text_tags = {
+        "warning": {"foreground": "#FF8C00"}, # 暗橙色
+        "error": {"foreground": "red"},
+        "info": {"foreground": "#008B8B"} # 深青色
+    }
+    # ---------------------------------
 
     # --- 底部和顶部UI元素 ---
     bottom_frame = tk.Frame(app.root, bg=default_bg)
