@@ -83,11 +83,11 @@ class MainApp:
     def _display_welcome_message(self):
         """在日志区显示欢迎和提示信息。"""
         separator = CONFIG.get("log_separator", "---")
-        self.log_raw(CONFIG.get("welcome_message", ""))
-        self.log_raw(separator)
-        self.log_raw(CONFIG.get("welcome_tips", ""), level="info")
-        self.log_raw(CONFIG.get("welcome_warning", ""), level="error") # 添加警告语
-        self.log_raw(separator)
+        self.log(CONFIG.get("welcome_message", ""), add_timestamp=False)
+        self.log(separator, add_timestamp=False)
+        self.log(CONFIG.get("welcome_tips", ""), level="info", add_timestamp=False)
+        self.log(CONFIG.get("welcome_warning", ""), level="error", add_timestamp=False) # 添加警告语
+        self.log(separator, add_timestamp=False)
 
     def open_template(self, template_type):
         """将模板复制到临时的只读文件并打开它。"""
@@ -112,24 +112,35 @@ class MainApp:
 
             if temp_path:
                 os.startfile(temp_path)
-                self.log_message(f"已打开模板: {os.path.basename(temp_path)}")
+                self.log(f"已打开模板: {os.path.basename(temp_path)}")
             else:
                 messagebox.showerror("错误", "创建临时模板文件失败。")
 
         except Exception as e:
             messagebox.showerror("打开失败", f"无法打开模板文件。\n错误: {e}")
 
+    def _select_path(self, selection_type, title, filetypes=None):
+        """通用路径选择函数，用于文件或文件夹。"""
+        if selection_type == 'file':
+            path = filedialog.askopenfilename(title=title, filetypes=filetypes)
+        elif selection_type == 'directory':
+            path = filedialog.askdirectory(title=title)
+        else:
+            return None # 不应发生此情况
+        return path
+
     def select_excel_file(self):
-        path = filedialog.askopenfilename(title="选择出院患者记录单", filetypes=[("Excel文件", "*.xlsx *.xls")])
+        """选择出院患者记录单Excel文件。"""
+        path = self._select_path('file', "选择出院患者记录单", [("Excel文件", "*.xlsx *.xls")])
         if path:
             self.excel_full_path = path
             self.excel_display_var.set(os.path.basename(path))
-            self.log_message(f"已选择出院患者列表: {path}")
-    
+            self.log(f"已选择出院患者列表: {path}")
+
     def clear_excel_selection(self):
         self.excel_full_path = ""
         self.excel_display_var.set("")
-        self.log_message("已清空出院患者列表选择。")
+        self.log("已清空出院患者列表选择。")
 
     def select_surgery_query_files(self):
         paths = filedialog.askopenfilenames(title="选择一个或多个手术查询文件", filetypes=[("Excel文件", "*.xlsx *.xls")])
@@ -138,42 +149,44 @@ class MainApp:
                 if path not in self.surgery_query_files:
                     self.surgery_query_files.append(path)
                     self.surgery_listbox.insert(tk.END, os.path.basename(path))
-                    self.log_message(f"已添加手术查询文件: {path}")
+                    self.log(f"已添加手术查询文件: {path}")
 
     def clear_surgery_query_files(self):
         self.surgery_query_files.clear()
         self.surgery_listbox.delete(0, tk.END)
-        self.log_message("已清空手术查询文件列表。")
+        self.log("已清空手术查询文件列表。")
 
     def select_template_file(self):
-        path = filedialog.askopenfilename(title="选择随访表模板", filetypes=[("Word模板", "*.docx")])
+        """选择自定义的Word模板文件。"""
+        path = self._select_path('file', "选择随访表模板", [("Word模板", "*.docx *.doc")])
         if path:
             self.template_full_path = path
             self.template_display_var.set(os.path.basename(path))
-            self.log_message(f"已选择Word模板: {path}")
+            self.log(f"已选择Word模板: {path}")
 
     def use_builtin_word_template(self):
         """设置UI以表明正在使用内置模板。"""
         self.template_full_path = "" # 清空外部路径
         self.template_display_var.set("[使用内置模板]")
-        self.log_message("已选择使用内置Word模板。")
+        self.log("已选择使用内置Word模板。")
         
     def clear_template_selection(self):
         self.template_full_path = ""
         self.template_display_var.set("")
-        self.log_message("已清空Word模板选择。")
+        self.log("已清空Word模板选择。")
 
     def select_output_dir(self):
-        path = filedialog.askdirectory(title="选择保存位置")
+        """选择用于保存生成文档的输出文件夹。"""
+        path = self._select_path('directory', "选择保存位置")
         if path:
             self.output_dir_full_path = path
             self.output_dir_display_var.set(os.path.basename(path))
-            self.log_message(f"已选择输出文件夹: {path}")
+            self.log(f"已选择输出文件夹: {path}")
             
     def clear_output_dir_selection(self):
         self.output_dir_full_path = ""
         self.output_dir_display_var.set("")
-        self.log_message("已清空输出文件夹选择。")
+        self.log("已清空输出文件夹选择。")
 
     def toggle_generation(self):
         """根据当前状态，开始或停止文档生成过程。"""
@@ -205,7 +218,7 @@ class MainApp:
             
             # --- 优化：不清空日志，只重置进度条并添加分隔符 ---
             self.progress_bar['value'] = 0
-            self.log_raw(CONFIG.get("log_separator", "---"))
+            self.log(CONFIG.get("log_separator", "---"), add_timestamp=False)
             # ---------------------------------------------
             
             self.start_button.config(text="停止生成", style="Stop.TButton")
@@ -255,42 +268,46 @@ class MainApp:
         )
 
         if not filepath:
-            self.log_message("用户取消了日志导出。")
+            self.log("用户取消了日志导出。")
             return
 
         try:
             with open(filepath, 'w', encoding='utf-8') as f:
                 f.write(log_content)
-            self.log_message(f"日志已成功导出到: {filepath}", level="info")
+            self.log(f"日志已成功导出到: {filepath}", level="info")
             messagebox.showinfo("成功", f"日志已成功导出到:\n{filepath}")
         except Exception as e:
-            self.log_message(f"导出日志失败: {e}", level="error")
+            self.log(f"导出日志失败: {e}", level="error")
             messagebox.showerror("导出失败", f"无法将日志保存到指定位置。\n错误: {e}")
 
-    def log_message(self, msg, level="info"):
-        if not msg or not str(msg).strip(): return
-        def append():
-            self.log_text.config(state='normal')
-            timestamp = datetime.now().strftime('%H:%M:%S')
-            full_log_line = f"{timestamp} - {msg}\n"
-            if level in self.log_text_tags:
-                self.log_text.insert(tk.END, full_log_line, (level,))
-            else:
-                self.log_text.insert(tk.END, full_log_line)
-            self.log_text.config(state='disabled')
-            self.log_text.see(tk.END)
-        self.root.after(0, append)
+    def log(self, msg, level="info", add_timestamp=True):
+        """
+        统一的日志记录方法。
+        :param msg: 要记录的消息。
+        :param level: 日志级别 ('info', 'error', 'success')，用于文本着色。
+        :param add_timestamp: 是否在消息前添加时间戳。
+        """
+        if not msg or not str(msg).strip():
+            return
 
-    def log_raw(self, msg, level=None):
-        if not msg or not str(msg).strip(): return
         def append():
             self.log_text.config(state='normal')
+            
+            log_line = str(msg)
+            if add_timestamp:
+                timestamp = datetime.now().strftime('%H:%M:%S')
+                log_line = f"{timestamp} - {log_line}"
+            
+            full_log_line = f"{log_line}\n"
+
+            tag_to_use = ()
             if level and level in self.log_text_tags:
-                self.log_text.insert(tk.END, str(msg) + '\n', (level,))
-            else:
-                self.log_text.insert(tk.END, str(msg) + '\n')
+                tag_to_use = (level,)
+
+            self.log_text.insert(tk.END, full_log_line, tag_to_use)
             self.log_text.config(state='disabled')
             self.log_text.see(tk.END)
+
         self.root.after(0, append)
 
     def update_progress(self, value):
