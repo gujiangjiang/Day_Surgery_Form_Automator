@@ -13,6 +13,7 @@ from tkinter import filedialog, messagebox
 from ..config import CONFIG
 from ..core.logic import DocumentGenerator
 from . import ui_builder # 导入新的UI构建模块
+from .. import temp_manager # 导入新的临时文件管理器
 
 class MainApp:
     def __init__(self, root, base_path): # 增加 base_path 参数
@@ -72,7 +73,7 @@ class MainApp:
         self.root.resizable(False, False)
 
     def open_template(self, template_type):
-        """打开指定类型的模板文件。"""
+        """将模板复制到临时的只读文件并打开它。"""
         template_map = {
             'discharge': CONFIG['discharge_template_name'],
             'surgery': CONFIG['surgery_template_name'],
@@ -84,14 +85,22 @@ class MainApp:
             return
 
         try:
-            # 使用正确的根目录来构建路径
-            path = os.path.join(self.base_path, 'templates', template_name)
-            if os.path.exists(path):
-                os.startfile(path)
-            else:
+            original_path = os.path.join(self.base_path, 'templates', template_name)
+            if not os.path.exists(original_path):
                 messagebox.showerror("错误", f"模板文件未找到！\n请确保 '{template_name}' 文件存在于 'templates' 文件夹中。")
+                return
+
+            # 创建一个临时的、只读的副本
+            temp_path = temp_manager.create_temp_read_only_copy(original_path)
+
+            if temp_path:
+                os.startfile(temp_path)
+                self.log_message(f"已打开模板: {os.path.basename(temp_path)}")
+            else:
+                messagebox.showerror("错误", "创建临时模板文件失败。")
+
         except Exception as e:
-            messagebox.showerror("打开失败", f"无法打开模板文件，请确保您已安装对应的办公软件。\n错误: {e}")
+            messagebox.showerror("打开失败", f"无法打开模板文件。\n错误: {e}")
 
     def select_excel_file(self):
         path = filedialog.askopenfilename(title="选择出院患者记录单", filetypes=[("Excel文件", "*.xlsx *.xls")])
