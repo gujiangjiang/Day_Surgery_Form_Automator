@@ -138,6 +138,16 @@ def create_ui(app):
     for tag, config in app.log_text_tags.items():
         app.log_text.tag_config(tag, **config)
 
+    # --- 新增：为日志区域添加右键菜单 ---
+    log_context_menu = tk.Menu(app.root, tearoff=False)
+    log_context_menu.add_command(label="导出日志...", command=app.export_log)
+
+    def show_log_context_menu(event):
+        log_context_menu.post(event.x_root, event.y_root)
+
+    app.log_text.bind("<Button-3>", show_log_context_menu)
+    # ------------------------------------
+
 def _create_dropdown_selector(parent, label_text, string_var, menu_items, font):
     """
     创建带有下拉菜单按钮的文件/目录选择器行。

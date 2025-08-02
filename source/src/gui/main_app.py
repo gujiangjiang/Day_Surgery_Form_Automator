@@ -231,10 +231,36 @@ class MainApp:
         
         self.root.after(0, _update_ui)
 
-    def log_message(self, msg, level="info"):
-        """向日志文本框中添加带时间戳的消息。"""
-        if not msg or not str(msg).strip():
+    def export_log(self):
+        """将日志内容导出到纯文本文件。"""
+        log_content = self.log_text.get('1.0', tk.END)
+        if not log_content.strip():
+            messagebox.showinfo("提示", "日志内容为空，无需导出。")
             return
+
+        default_filename = f"随访表生成日志_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+        filepath = filedialog.asksaveasfilename(
+            title="导出日志文件",
+            initialfile=default_filename,
+            defaultextension=".txt",
+            filetypes=[("Text files", "*.txt"), ("All files", "*.*")]
+        )
+
+        if not filepath:
+            self.log_message("用户取消了日志导出。")
+            return
+
+        try:
+            with open(filepath, 'w', encoding='utf-8') as f:
+                f.write(log_content)
+            self.log_message(f"日志已成功导出到: {filepath}", level="info")
+            messagebox.showinfo("成功", f"日志已成功导出到:\n{filepath}")
+        except Exception as e:
+            self.log_message(f"导出日志失败: {e}", level="error")
+            messagebox.showerror("导出失败", f"无法将日志保存到指定位置。\n错误: {e}")
+
+    def log_message(self, msg, level="info"):
+        if not msg or not str(msg).strip(): return
         def append():
             self.log_text.config(state='normal')
             timestamp = datetime.now().strftime('%H:%M:%S')
