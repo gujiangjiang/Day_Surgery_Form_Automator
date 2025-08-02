@@ -112,7 +112,7 @@ class MainApp:
 
             if temp_path:
                 os.startfile(temp_path)
-                self.log(f"已打开模板: {os.path.basename(temp_path)}")
+                self.log(f"已打开模板: {os.path.basename(temp_path)}", level="info")
             else:
                 messagebox.showerror("错误", "创建临时模板文件失败。")
 
@@ -135,12 +135,12 @@ class MainApp:
         if path:
             self.excel_full_path = path
             self.excel_display_var.set(os.path.basename(path))
-            self.log(f"已选择出院患者列表: {path}")
+            self.log(f"已选择出院患者列表: {path}", level="info")
 
     def clear_excel_selection(self):
         self.excel_full_path = ""
         self.excel_display_var.set("")
-        self.log("已清空出院患者列表选择。")
+        self.log("已清空出院患者列表选择。", level="info")
 
     def select_surgery_query_files(self):
         paths = filedialog.askopenfilenames(title="选择一个或多个手术查询文件", filetypes=[("Excel文件", "*.xlsx *.xls")])
@@ -149,12 +149,12 @@ class MainApp:
                 if path not in self.surgery_query_files:
                     self.surgery_query_files.append(path)
                     self.surgery_listbox.insert(tk.END, os.path.basename(path))
-                    self.log(f"已添加手术查询文件: {path}")
+                    self.log(f"已添加手术查询文件: {path}", level="info")
 
     def clear_surgery_query_files(self):
         self.surgery_query_files.clear()
         self.surgery_listbox.delete(0, tk.END)
-        self.log("已清空手术查询文件列表。")
+        self.log("已清空手术查询文件列表。", level="info")
 
     def select_template_file(self):
         """选择自定义的Word模板文件。"""
@@ -162,18 +162,18 @@ class MainApp:
         if path:
             self.template_full_path = path
             self.template_display_var.set(os.path.basename(path))
-            self.log(f"已选择Word模板: {path}")
+            self.log(f"已选择Word模板: {path}", level="info")
 
     def use_builtin_word_template(self):
         """设置UI以表明正在使用内置模板。"""
         self.template_full_path = "" # 清空外部路径
         self.template_display_var.set("[使用内置模板]")
-        self.log("已选择使用内置Word模板。")
+        self.log("已选择使用内置Word模板。", level="info")
         
     def clear_template_selection(self):
         self.template_full_path = ""
         self.template_display_var.set("")
-        self.log("已清空Word模板选择。")
+        self.log("已清空Word模板选择。", level="info")
 
     def select_output_dir(self):
         """选择用于保存生成文档的输出文件夹。"""
@@ -181,12 +181,12 @@ class MainApp:
         if path:
             self.output_dir_full_path = path
             self.output_dir_display_var.set(os.path.basename(path))
-            self.log(f"已选择输出文件夹: {path}")
+            self.log(f"已选择输出文件夹: {path}", level="info")
             
     def clear_output_dir_selection(self):
         self.output_dir_full_path = ""
         self.output_dir_display_var.set("")
-        self.log("已清空输出文件夹选择。")
+        self.log("已清空输出文件夹选择。", level="info")
 
     def toggle_generation(self):
         """根据当前状态，开始或停止文档生成过程。"""
@@ -268,7 +268,7 @@ class MainApp:
         )
 
         if not filepath:
-            self.log("用户取消了日志导出。")
+            self.log("用户取消了日志导出。", level="info")
             return
 
         try:
@@ -280,11 +280,11 @@ class MainApp:
             self.log(f"导出日志失败: {e}", level="error")
             messagebox.showerror("导出失败", f"无法将日志保存到指定位置。\n错误: {e}")
 
-    def log(self, msg, level="info", add_timestamp=True):
+    def log(self, msg, level=None, add_timestamp=True):
         """
         统一的日志记录方法。
         :param msg: 要记录的消息。
-        :param level: 日志级别 ('info', 'error', 'success')，用于文本着色。
+        :param level: 日志级别 ('info', 'error', 'success', None)，用于文本着色。None为默认颜色。
         :param add_timestamp: 是否在消息前添加时间戳。
         """
         if not msg or not str(msg).strip():
