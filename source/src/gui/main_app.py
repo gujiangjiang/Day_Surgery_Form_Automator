@@ -231,6 +231,14 @@ class MainApp:
         
         self.root.after(0, _update_ui)
 
+    def clear_log(self):
+        """清空日志区域的内容并恢复欢迎语。"""
+        if messagebox.askyesno("确认", "确定要清空所有日志内容吗？"):
+            self.log_text.config(state='normal')
+            self.log_text.delete('1.0', tk.END)
+            self.log_text.config(state='disabled')
+            self._display_welcome_message()
+
     def export_log(self):
         """将日志内容导出到纯文本文件。"""
         log_content = self.log_text.get('1.0', tk.END)

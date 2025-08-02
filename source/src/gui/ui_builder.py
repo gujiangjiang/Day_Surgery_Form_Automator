@@ -140,6 +140,8 @@ def create_ui(app):
 
     # --- 新增：为日志区域添加右键菜单 ---
     log_context_menu = tk.Menu(app.root, tearoff=False)
+    log_context_menu.add_command(label="清空日志", command=app.clear_log)
+    log_context_menu.add_separator()
     log_context_menu.add_command(label="导出日志...", command=app.export_log)
 
     def show_log_context_menu(event):
