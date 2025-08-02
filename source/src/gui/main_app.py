@@ -24,9 +24,16 @@ class MainApp:
         self.surgery_query_files = []
         self.generation_thread = None
         self.generator_instance = None
-        self.excel_path_var = tk.StringVar()
-        self.template_path_var = tk.StringVar()
-        self.output_dir_var = tk.StringVar()
+        
+        # 用于UI显示的StringVar
+        self.excel_display_var = tk.StringVar()
+        self.template_display_var = tk.StringVar()
+        self.output_dir_display_var = tk.StringVar()
+
+        # 用于存储完整路径的实例变量
+        self.excel_full_path = ""
+        self.template_full_path = ""
+        self.output_dir_full_path = ""
         
         # --- 初始化设置 ---
         self.scaling_factor = self._get_scaling_factor()
@@ -104,7 +111,10 @@ class MainApp:
 
     def select_excel_file(self):
         path = filedialog.askopenfilename(title="选择出院患者记录单", filetypes=[("Excel文件", "*.xlsx *.xls")])
-        if path: self.excel_path_var.set(path)
+        if path:
+            self.excel_full_path = path
+            self.excel_display_var.set(os.path.basename(path))
+            self.log_message(f"已选择出院患者列表: {path}")
 
     def select_surgery_query_files(self):
         paths = filedialog.askopenfilenames(title="选择一个或多个手术查询文件", filetypes=[("Excel文件", "*.xlsx *.xls")])
@@ -113,22 +123,32 @@ class MainApp:
                 if path not in self.surgery_query_files:
                     self.surgery_query_files.append(path)
                     self.surgery_listbox.insert(tk.END, os.path.basename(path))
+                    self.log_message(f"已添加手术查询文件: {path}")
 
     def clear_surgery_query_files(self):
         self.surgery_query_files.clear()
         self.surgery_listbox.delete(0, tk.END)
+        self.log_message("已清空手术查询文件列表。")
 
     def select_template_file(self):
         path = filedialog.askopenfilename(title="选择随访表模板", filetypes=[("Word模板", "*.docx")])
-        if path: self.template_path_var.set(path)
+        if path:
+            self.template_full_path = path
+            self.template_display_var.set(os.path.basename(path))
+            self.log_message(f"已选择Word模板: {path}")
 
     def use_builtin_word_template(self):
         """设置UI以表明正在使用内置模板。"""
-        self.template_path_var.set("[使用内置模板]")
+        self.template_full_path = "" # 清空外部路径
+        self.template_display_var.set("[使用内置模板]")
+        self.log_message("已选择使用内置Word模板。")
 
     def select_output_dir(self):
         path = filedialog.askdirectory(title="选择保存位置")
-        if path: self.output_dir_var.set(path)
+        if path:
+            self.output_dir_full_path = path
+            self.output_dir_display_var.set(os.path.basename(path))
+            self.log_message(f"已选择输出文件夹: {path}")
 
     def toggle_generation(self):
         """根据当前状态，开始或停止文档生成过程。"""
@@ -137,12 +157,12 @@ class MainApp:
                 self.generator_instance.stop()
             self.start_button.config(state='disabled', text="正在停止...")
         else:
-            if not all([self.excel_path_var.get(), self.output_dir_var.get()]):
+            if not all([self.excel_full_path, self.output_dir_full_path]):
                 messagebox.showwarning("信息不全", "请先选择好“出院患者列表”和“输出文件夹”。")
                 return
             
-            template_path = self.template_path_var.get()
-            if not template_path or template_path == "[使用内置模板]":
+            template_path = self.template_full_path
+            if not template_path:
                 self.log_message("未选择外部Word模板或已指定使用内置模板，将加载内置模板。", "info")
                 template_path = os.path.join(self.base_path, 'templates', CONFIG['follow_up_template_name'])
                 if not os.path.exists(template_path):
@@ -154,10 +174,10 @@ class MainApp:
             self.log_text.config(state='normal'); self.log_text.delete('1.0', tk.END); self.log_text.config(state='disabled')
             
             self.generator_instance = DocumentGenerator(
-                excel_path=self.excel_path_var.get(), 
+                excel_path=self.excel_full_path, 
                 surgery_query_paths=self.surgery_query_files,
                 template_path=template_path, 
-                output_dir=self.output_dir_var.get(), 
+                output_dir=self.output_dir_full_path, 
                 app_instance=self
             )
             self.generation_thread = threading.Thread(target=self.generator_instance.run, daemon=True)

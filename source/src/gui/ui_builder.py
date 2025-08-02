@@ -71,12 +71,8 @@ def create_ui(app):
     file_frame = ttk.LabelFrame(left_panel, text="步骤1: 选择文件和路径", padding=5)
     file_frame.pack(fill=tk.BOTH, expand=True) 
     
-    # --- 出院患者列表 ---
-    discharge_menu_items = [
-        ("查看模板", lambda: app.open_template('discharge')),
-        ("选择文件", app.select_excel_file)
-    ]
-    _create_dropdown_selector(file_frame, "出院患者列表:", app.excel_path_var, discharge_menu_items, app.font_normal)
+    discharge_menu_items = [("查看模板", lambda: app.open_template('discharge')), ("选择文件", app.select_excel_file)]
+    _create_dropdown_selector(file_frame, "出院患者列表:", app.excel_display_var, discharge_menu_items, app.font_normal)
     
     # --- 手术查询文件 ---
     surgery_frame = ttk.LabelFrame(file_frame, text="手术查询文件 (可选, 用于补充床号)", padding=5)
@@ -96,16 +92,10 @@ def create_ui(app):
     
     ttk.Button(surgery_buttons_frame, text="清空列表", command=app.clear_surgery_query_files, width=8).pack(fill=tk.X, pady=1)
     
-    # --- Word模板 ---
-    word_menu_items = [
-        ("查看模板", lambda: app.open_template('follow_up')),
-        ("选择文件", app.select_template_file),
-        ("使用内置模板", app.use_builtin_word_template)
-    ]
-    _create_dropdown_selector(file_frame, "Word模板:", app.template_path_var, word_menu_items, app.font_normal)
+    word_menu_items = [("查看模板", lambda: app.open_template('follow_up')), ("选择文件", app.select_template_file), ("使用内置模板", app.use_builtin_word_template)]
+    _create_dropdown_selector(file_frame, "Word模板:", app.template_display_var, word_menu_items, app.font_normal)
     
-    # --- 输出文件夹 ---
-    _create_dropdown_selector(file_frame, "输出文件夹:", app.output_dir_var, [("选择文件夹", app.select_output_dir)], app.font_normal)
+    _create_dropdown_selector(file_frame, "输出文件夹:", app.output_dir_display_var, [("选择文件夹", app.select_output_dir)], app.font_normal)
     
     # --- 控制和进度条 ---
     left_bottom_container = ttk.Frame(left_panel)
