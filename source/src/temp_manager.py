@@ -10,12 +10,26 @@ import atexit
 
 TEMP_DIR = None
 
+def _remove_readonly(func, path, exc_info):
+    """
+    shutil.rmtree 的错误处理器。
+    它会在删除失败时被调用，尝试移除文件的只读属性并重试。
+    """
+    # exc_info[1] 包含异常实例，我们可以检查它的 winerror 属性
+    # 在 Windows 上, "拒绝访问" 的错误代码是 5
+    if func in (os.rmdir, os.remove, os.unlink) and exc_info[1].winerror == 5:
+        os.chmod(path, stat.S_IWRITE) # 移除只读属性
+        func(path) # 重试删除
+    else:
+        raise # 如果是其他错误，则重新引发异常
+
 def _cleanup_temp_dir():
     """在程序退出时，自动清理创建的临时文件夹。"""
     global TEMP_DIR
     if TEMP_DIR and os.path.exists(TEMP_DIR):
         try:
-            shutil.rmtree(TEMP_DIR)
+            # 使用 onerror 处理器来处理因只读属性导致的删除失败
+            shutil.rmtree(TEMP_DIR, onerror=_remove_readonly)
             print(f"成功清理临时文件夹: {TEMP_DIR}")
         except Exception as e:
             print(f"清理临时文件夹 {TEMP_DIR} 时出错: {e}")
