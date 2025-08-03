@@ -101,6 +101,29 @@ class MainApp:
         self.log(ui_texts.get("welcome_warning", ""), level="error", add_timestamp=False)
         self.log(separator, add_timestamp=False)
 
+    def _set_ui_busy(self, is_busy):
+        """
+        设置界面的忙碌状态，通过禁用/启用控件实现。
+        :param is_busy: 布尔值，True表示忙碌，False表示空闲。
+        """
+        new_state = tk.DISABLED if is_busy else tk.NORMAL
+        cursor_type = "watch" if is_busy else ""
+
+        # 更改鼠标指针
+        self.root.config(cursor=cursor_type)
+        
+        # 遍历并禁用/启用所有指定的交互控件
+        for widget in self.interactive_widgets:
+            try:
+                # Listbox需要特殊处理，因为它没有'state'选项，但可以通过禁用导出选择来达到类似效果
+                if isinstance(widget, tk.Listbox):
+                    widget.config(exportselection=not is_busy)
+                else:
+                    widget.config(state=new_state)
+            except tk.TclError:
+                # 忽略某些控件可能没有state属性的错误
+                pass
+
     def _open_file_cross_platform(self, file_path):
         """跨平台安全地打开文件或文件夹。"""
         try:
@@ -249,7 +272,8 @@ class MainApp:
             
             self.start_button.config(text="停止生成", style="Stop.TButton")
             
-            # --- 解耦：使用回调函数替代传递整个app实例 ---
+            self._set_ui_busy(True)
+
             self.generator_instance = DocumentGenerator(
                 excel_path=self.excel_full_path, 
                 surgery_query_paths=self.surgery_query_files,
@@ -279,6 +303,7 @@ class MainApp:
     def generation_finished(self):
         """当生成线程结束时，由线程本身调用此方法来更新UI。"""
         def _update_ui():
+            self._set_ui_busy(False)
             self.start_button.config(state='normal', text="开始生成", style="Accent.TButton")
             self.generation_thread = None
             self.generator_instance = None

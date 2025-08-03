@@ -26,6 +26,8 @@ def create_ui(app):
 
     log_colors = UI_CONFIG['colors']['log_tags']
     app.log_text_tags = log_colors
+    # --- 新增：创建一个列表，用于存放所有在处理期间需要被禁用的控件 ---
+    app.interactive_widgets = []
 
     # --- 底部和顶部UI元素 ---
     bottom_frame = tk.Frame(app.root, bg=default_bg)
@@ -82,31 +84,31 @@ def create_ui(app):
         ("---", None),
         ("清空选择", app.clear_excel_selection)
     ]
-    discharge_entry, discharge_label, _ = _create_dropdown_selector(file_frame, "出院患者列表:", app.excel_display_var, discharge_menu_items, app.font_normal)
-    Tooltip(discharge_entry, "必须项。选择包含所有患者出院信息的主Excel文件。")
-    Tooltip(discharge_label, "必须项。选择包含所有患者出院信息的主Excel文件。")
-
+    # 捕获返回的控件，并将需要禁用的Menubutton添加到列表中
+    _, _, discharge_menubutton = _create_dropdown_selector(file_frame, "出院患者列表:", app.excel_display_var, discharge_menu_items, app.font_normal)
+    app.interactive_widgets.append(discharge_menubutton)
 
     # --- 手术查询文件 ---
     surgery_frame = ttk.LabelFrame(file_frame, text="手术查询文件 (可选, 用于补充床号)", padding=5)
     surgery_frame.pack(fill=tk.X, expand=True, pady=3)
     app.surgery_listbox = tk.Listbox(surgery_frame, height=5, font=app.font_normal)
     app.surgery_listbox.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0,5))
+    app.interactive_widgets.append(app.surgery_listbox) # 添加列表框到禁用列表
+    
     surgery_buttons_frame = ttk.Frame(surgery_frame)
     surgery_buttons_frame.pack(side=tk.LEFT, fill=tk.Y, anchor='n')
     
-    # 手术查询的下拉菜单按钮
-    surgery_menubutton = ttk.Menubutton(surgery_buttons_frame, text="选项...", width=8)
-    surgery_menu = tk.Menu(surgery_menubutton, tearoff=False)
+    app.surgery_menubutton = ttk.Menubutton(surgery_buttons_frame, text="选项...", width=8)
+    surgery_menu = tk.Menu(app.surgery_menubutton, tearoff=False)
     surgery_menu.add_command(label="添加文件", command=app.select_surgery_query_files)
     surgery_menu.add_command(label="查看模板", command=lambda: app.open_template('surgery'))
     surgery_menu.add_separator()
     surgery_menu.add_command(label="清空列表", command=app.clear_surgery_query_files)
-    surgery_menubutton.config(menu=surgery_menu)
-    surgery_menubutton.pack(fill=tk.X, pady=1)
-    # 为手术查询部分添加提示
+    app.surgery_menubutton.config(menu=surgery_menu)
+    app.surgery_menubutton.pack(fill=tk.X, pady=1)
+    app.interactive_widgets.append(app.surgery_menubutton) # 添加按钮到禁用列表
     Tooltip(app.surgery_listbox, "（可选）添加一个或多个手术记录文件，用于自动匹配和补充主列表中缺失的床号信息。")
-    Tooltip(surgery_menubutton, "管理手术查询文件列表。")
+    Tooltip(app.surgery_menubutton, "管理手术查询文件列表。")
 
     
     word_menu_items = [
@@ -116,9 +118,8 @@ def create_ui(app):
         ("---", None),
         ("清空选择", app.clear_template_selection)
     ]
-    word_entry, word_label, _ = _create_dropdown_selector(file_frame, "Word模板:", app.template_display_var, word_menu_items, app.font_normal)
-    Tooltip(word_entry, "必须项。选择用于生成随访表的Word模板文件，或选择使用软件内置的默认模板。")
-    Tooltip(word_label, "必须项。选择用于生成随访表的Word模板文件，或选择使用软件内置的默认模板。")
+    _, _, word_menubutton = _create_dropdown_selector(file_frame, "Word模板:", app.template_display_var, word_menu_items, app.font_normal)
+    app.interactive_widgets.append(word_menubutton)
 
     
     output_dir_items = [
@@ -126,16 +127,13 @@ def create_ui(app):
         ("---", None),
         ("清空选择", app.clear_output_dir_selection)
     ]
-    output_entry, output_label, _ = _create_dropdown_selector(file_frame, "输出文件夹:", app.output_dir_display_var, output_dir_items, app.font_normal)
-    Tooltip(output_entry, "必须项。选择一个文件夹用于保存所有生成的Word文档。")
-    Tooltip(output_label, "必须项。选择一个文件夹用于保存所有生成的Word文档。")
+    _, _, output_menubutton = _create_dropdown_selector(file_frame, "输出文件夹:", app.output_dir_display_var, output_dir_items, app.font_normal)
+    app.interactive_widgets.append(output_menubutton)
 
     
     # --- 控制和进度条 ---
-    left_bottom_container = ttk.Frame(left_panel)
-    left_bottom_container.pack(fill=tk.X, pady=(5,0))
-    control_frame = ttk.LabelFrame(left_bottom_container, text="步骤2: 开始生成", padding=10)
-    control_frame.pack(fill=tk.X)
+    control_frame = ttk.LabelFrame(left_panel, text="步骤2: 开始生成", padding=10)
+    control_frame.pack(fill=tk.X, pady=(5,0))
     
     style.configure("Accent.TButton", foreground="white", background="#0078D7", font=app.font_button)
     style.configure("Stop.TButton", foreground="white", background="#E81123", font=app.font_button)
@@ -203,7 +201,8 @@ def _create_dropdown_selector(parent, label_text, string_var, menu_items, font):
             menu.add_command(label=item_text, command=command)
     menubutton.config(menu=menu)
     
-    # 为 "选项..." 按钮添加提示
+    Tooltip(entry, f"已选择的{label_text.replace(':', '')}路径。")
+    Tooltip(label_widget, f"点击右侧“选项...”按钮来选择{label_text.replace(':', '')}。")
     Tooltip(menubutton, "点击展开操作菜单")
     
     # 返回所有创建的控件，以便外部可以为它们分别添加提示
