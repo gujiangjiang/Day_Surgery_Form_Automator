@@ -251,53 +251,81 @@ class MainApp:
         self.output_dir_display_var.set("")
         self.log("已清空输出文件夹选择。", level="info")
 
+    # --- 优化：将输入验证逻辑提取到此辅助函数 ---
+    def _validate_inputs(self):
+        """
+        验证所有开始生成前必需的输入项是否都已提供。
+        :return: (bool, str) 一个元组，第一个元素表示是否有效，第二个是错误信息（如果无效）。
+        """
+        if not self.excel_full_path:
+            return False, "请选择“出院患者列表”。"
+        if not self.output_dir_full_path:
+            return False, "请选择“输出文件夹”。"
+        if not self.template_full_path and self.template_display_var.get() != "[使用内置模板]":
+            return False, "请选择一个Word模板或点击“使用内置模板”。"
+        return True, ""
+
+    # --- 优化：将模板路径获取逻辑提取到此辅助函数 ---
+    def _get_template_path(self):
+        """
+        获取当前有效的模板路径，无论是自定义的还是内置的。
+        :return: (str, str) 一个元组，第一个是模板路径，第二个是错误信息（如果无效）。
+        """
+        if self.template_full_path:
+            return self.template_full_path, ""
+        
+        if self.template_display_var.get() == "[使用内置模板]":
+            template_path_obj = self.base_path / 'templates' / CONFIG['follow_up_template_name']
+            if not template_path_obj.exists():
+                error_msg = f"内置Word模板未找到！\n请确保 '{CONFIG['follow_up_template_name']}' 文件存在于 'templates' 文件夹中。"
+                return None, error_msg
+            return str(template_path_obj), ""
+        
+        return None, "未知的模板配置错误。"
+
+
     def toggle_generation(self):
-        """根据当前状态，开始或停止文档生成过程。"""
+        """
+        根据当前状态，开始或停止文档生成过程。
+        此方法经过重构，逻辑更清晰。
+        """
+        # --- 阶段1: 检查当前是否正在运行 ---
         if self.generation_thread and self.generation_thread.is_alive():
             if self.generator_instance:
                 self.generator_instance.stop()
             self.start_button.config(state='disabled', text="正在停止...")
-        else:
-            if not self.excel_full_path:
-                self.show_message("warning", "信息不全", "请选择“出院患者列表”。")
-                return
-            if not self.output_dir_full_path:
-                self.show_message("warning", "信息不全", "请选择“输出文件夹”。")
-                return
-            if not self.template_full_path and self.template_display_var.get() != "[使用内置模板]":
-                self.show_message("warning", "信息不全", "请选择一个Word模板或点击“使用内置模板”。")
-                return
+            return
 
-            template_path = ""
-            if self.template_display_var.get() == "[使用内置模板]":
-                # 使用 pathlib 构建路径
-                template_path_obj = self.base_path / 'templates' / CONFIG['follow_up_template_name']
-                if not template_path_obj.exists():
-                    self.show_message("error", "错误", f"内置Word模板未找到！\n请确保 '{CONFIG['follow_up_template_name']}' 文件存在于 'templates' 文件夹中。")
-                    return
-                template_path = str(template_path_obj) # 传递字符串路径给核心逻辑
-            else:
-                template_path = self.template_full_path
-            
-            self.progress_bar['value'] = 0
-            self.log(UI_CONFIG['texts'].get("log_separator", "---"), add_timestamp=False)
-            
-            self.start_button.config(text="停止生成", style="Stop.TButton")
-            
-            self._set_ui_busy(True)
+        # --- 阶段2: 验证输入 ---
+        is_valid, error_message = self._validate_inputs()
+        if not is_valid:
+            self.show_message("warning", "信息不全", error_message)
+            return
 
-            self.generator_instance = DocumentGenerator(
-                excel_path=self.excel_full_path, 
-                surgery_query_paths=self.surgery_query_files,
-                template_path=template_path, 
-                output_dir=self.output_dir_full_path,
-                log_callback=self.log,
-                progress_callback=self.update_progress,
-                completion_callback=self.generation_finished,
-                message_callback=self.show_message
-            )
-            self.generation_thread = threading.Thread(target=self.generator_instance.run, daemon=True)
-            self.generation_thread.start()
+        # --- 阶段3: 获取模板路径 ---
+        template_path, error_message = self._get_template_path()
+        if not template_path:
+            self.show_message("error", "错误", error_message)
+            return
+        
+        # --- 阶段4: 准备并启动线程 ---
+        self.progress_bar['value'] = 0
+        self.log(UI_CONFIG['texts'].get("log_separator", "---"), add_timestamp=False)
+        self.start_button.config(text="停止生成", style="Stop.TButton")
+        self._set_ui_busy(True)
+
+        self.generator_instance = DocumentGenerator(
+            excel_path=self.excel_full_path, 
+            surgery_query_paths=self.surgery_query_files,
+            template_path=template_path, 
+            output_dir=self.output_dir_full_path,
+            log_callback=self.log,
+            progress_callback=self.update_progress,
+            completion_callback=self.generation_finished,
+            message_callback=self.show_message
+        )
+        self.generation_thread = threading.Thread(target=self.generator_instance.run, daemon=True)
+        self.generation_thread.start()
 
     def show_message(self, level, title, message):
         """根据级别显示不同类型的消息框，确保线程安全。"""
