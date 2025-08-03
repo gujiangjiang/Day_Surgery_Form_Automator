@@ -12,7 +12,7 @@ from pathlib import Path # 导入Path类
 import tkinter as tk
 from tkinter import filedialog, messagebox
 
-from ..config import CONFIG
+from ..config import CONFIG, UI_CONFIG # 分别导入业务逻辑和UI配置
 from ..core.logic import DocumentGenerator
 from . import ui_builder # 导入新的UI构建模块
 from .. import temp_manager # 导入新的临时文件管理器
@@ -58,10 +58,9 @@ class MainApp:
             return 1.0
 
     def _load_fonts_from_config(self):
-        """
-        从config.py动态加载所有字体设置。
-        """
-        font_config = CONFIG['UI_CONFIG']['fonts']
+        """从config.py动态加载所有字体设置。"""
+        # 直接从UI_CONFIG中获取字体
+        font_config = UI_CONFIG['fonts']
         for name, font_tuple in font_config.items():
             # 使用setattr动态创建实例的字体属性
             # e.g., self.font_normal = ("微软雅黑", 9)
@@ -69,9 +68,8 @@ class MainApp:
 
     def setup_window(self):
         """设置窗口大小并居中"""
-        ui_config = CONFIG['UI_CONFIG']
-        app_info = ui_config['app_info']
-        layout_config = ui_config['layout']['window']
+        app_info = UI_CONFIG['app_info']
+        layout_config = UI_CONFIG['layout']['window']
 
         window_title = f"{app_info['title']} V{app_info['version']}"
         self.root.title(window_title)
@@ -95,7 +93,7 @@ class MainApp:
 
     def _display_welcome_message(self):
         """在日志区显示欢迎和提示信息。"""
-        ui_texts = CONFIG['UI_CONFIG']['texts']
+        ui_texts = UI_CONFIG['texts']
         separator = ui_texts.get("log_separator", "---")
         self.log(ui_texts.get("welcome_message", ""), add_timestamp=False)
         self.log(separator, add_timestamp=False)
@@ -247,7 +245,7 @@ class MainApp:
                 template_path = self.template_full_path
             
             self.progress_bar['value'] = 0
-            self.log(CONFIG['UI_CONFIG']['texts'].get("log_separator", "---"), add_timestamp=False)
+            self.log(UI_CONFIG['texts'].get("log_separator", "---"), add_timestamp=False)
             
             self.start_button.config(text="停止生成", style="Stop.TButton")
             

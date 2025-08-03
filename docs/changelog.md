@@ -225,4 +225,7 @@
 - [重构] 删除了 main_app.py 中的 setup_fonts 方法，改为从配置文件动态加载字体。
 - [重构] 更新了 ui_builder.py 以从配置文件中读取所有显示的文本和样式。
 - [优化] 将窗口大小、可调整性以及分割窗格的尺寸参数移至 config.py 中，实现完全的UI布局配置化。
+- [重构] 调整 config.py 结构，将 UI_CONFIG 和 CONFIG 分离为两个独立的顶级配置字典。
+- [优化] 为 config.py 文件添加了完整和详细的中文注释，解释了每个配置项的作用。
+- [重构] 更新了 main_app.py 和 ui_builder.py 以适应新的配置结构。
 

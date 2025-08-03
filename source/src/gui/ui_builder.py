@@ -7,17 +7,16 @@ import tkinter as tk
 from tkinter import ttk, scrolledtext
 from datetime import datetime
 from .tooltip import Tooltip
-from ..config import CONFIG # 导入全局配置
+from ..config import UI_CONFIG # 只导入UI配置
 
 def create_ui(app):
     """
     创建并布局所有界面组件。
     :param app: MainApp的实例，用于绑定命令和访问变量。
     """
-    # 从配置中获取UI配置
-    ui_config = CONFIG['UI_CONFIG']
-    ui_texts = ui_config['texts']
-    app_info = ui_config['app_info']
+    # 直接从导入的UI_CONFIG中获取配置
+    ui_texts = UI_CONFIG['texts']
+    app_info = UI_CONFIG['app_info']
 
     style = ttk.Style(app.root)
     if "clam" in style.theme_names():
@@ -25,8 +24,7 @@ def create_ui(app):
     default_bg = style.lookup('TFrame', 'background')
     app.root.configure(bg=default_bg)
 
-    # 从配置中获取日志颜色
-    log_colors = ui_config['colors']['log_tags']
+    log_colors = UI_CONFIG['colors']['log_tags']
     app.log_text_tags = log_colors
 
     # --- 底部和顶部UI元素 ---
@@ -60,8 +58,7 @@ def create_ui(app):
     right_panel = ttk.Frame(main_pane, padding=(5, 5, 5, 5))
     main_pane.add(right_panel)
     
-    # 从配置中读取 PanedWindow 的布局参数
-    pane_config = ui_config['layout']['paned_window']
+    pane_config = UI_CONFIG['layout']['paned_window']
     s = app.scaling_factor
     sash_default = int(pane_config['sash_default'] * s)
     sash_min = int(pane_config['sash_min'] * s)
