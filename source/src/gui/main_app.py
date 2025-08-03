@@ -39,7 +39,7 @@ class MainApp:
         
         # --- 初始化设置 ---
         self.scaling_factor = self._get_scaling_factor()
-        self.setup_fonts()
+        self._load_fonts_from_config() # 从配置文件加载字体
         self.setup_window()
         
         # --- 构建UI ---
@@ -57,18 +57,22 @@ class MainApp:
         except Exception:
             return 1.0
 
-    def setup_fonts(self):
-        """设置字体"""
-        self.font_normal = ("微软雅黑", 9)
-        self.font_bold = ("微软雅黑", 10, "bold")
-        self.font_title = ("微软雅黑", 20, "bold")
-        self.font_subtitle = ("微软雅黑", 16, "bold")
-        self.font_button = ("微软雅黑", 12, "bold")
-        self.font_disclaimer = ("微软雅黑", 10)
+    def _load_fonts_from_config(self):
+        """
+        从config.py动态加载所有字体设置。
+        """
+        font_config = CONFIG['UI_CONFIG']['fonts']
+        for name, font_tuple in font_config.items():
+            # 使用setattr动态创建实例的字体属性
+            # e.g., self.font_normal = ("微软雅黑", 9)
+            setattr(self, f"font_{name}", font_tuple)
 
     def setup_window(self):
         """设置窗口大小并居中"""
-        self.root.title(CONFIG['app_title'])
+        app_info = CONFIG['UI_CONFIG']['app_info']
+        window_title = f"{app_info['title']} V{app_info['version']}"
+        self.root.title(window_title)
+        
         s = self.scaling_factor
         width = int(685 * s)
         height = int(535 * s)
@@ -84,11 +88,12 @@ class MainApp:
 
     def _display_welcome_message(self):
         """在日志区显示欢迎和提示信息。"""
-        separator = CONFIG.get("log_separator", "---")
-        self.log(CONFIG.get("welcome_message", ""), add_timestamp=False)
+        ui_texts = CONFIG['UI_CONFIG']['texts']
+        separator = ui_texts.get("log_separator", "---")
+        self.log(ui_texts.get("welcome_message", ""), add_timestamp=False)
         self.log(separator, add_timestamp=False)
-        self.log(CONFIG.get("welcome_tips", ""), level="info", add_timestamp=False)
-        self.log(CONFIG.get("welcome_warning", ""), level="error", add_timestamp=False) # 添加警告语
+        self.log(ui_texts.get("welcome_tips", ""), level="info", add_timestamp=False)
+        self.log(ui_texts.get("welcome_warning", ""), level="error", add_timestamp=False)
         self.log(separator, add_timestamp=False)
 
     def _open_file_cross_platform(self, file_path):
@@ -235,7 +240,7 @@ class MainApp:
                 template_path = self.template_full_path
             
             self.progress_bar['value'] = 0
-            self.log(CONFIG.get("log_separator", "---"), add_timestamp=False)
+            self.log(CONFIG['UI_CONFIG']['texts'].get("log_separator", "---"), add_timestamp=False)
             
             self.start_button.config(text="停止生成", style="Stop.TButton")
             

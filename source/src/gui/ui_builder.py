@@ -6,42 +6,49 @@ GUI构建模块。
 import tkinter as tk
 from tkinter import ttk, scrolledtext
 from datetime import datetime
-from .tooltip import Tooltip # 导入新的Tooltip类
+from .tooltip import Tooltip
+from ..config import CONFIG # 导入全局配置
 
 def create_ui(app):
     """
     创建并布局所有界面组件。
     :param app: MainApp的实例，用于绑定命令和访问变量。
     """
+    # 从配置中获取UI配置
+    ui_config = CONFIG['UI_CONFIG']
+    ui_texts = ui_config['texts']
+    app_info = ui_config['app_info']
+
     style = ttk.Style(app.root)
     if "clam" in style.theme_names():
         style.theme_use("clam")
     default_bg = style.lookup('TFrame', 'background')
     app.root.configure(bg=default_bg)
 
-    #--- info日志样式 ---
-    app.log_text_tags = {
-        "warning": {"foreground": "#FF8C00"}, # 暗橙色
-        "error": {"foreground": "red"},
-        "info": {"foreground": "#008B8B"} # 深青色
-    }
-    # ---------------------------------
+    # 从配置中获取日志颜色
+    log_colors = ui_config['colors']['log_tags']
+    app.log_text_tags = log_colors
 
     # --- 底部和顶部UI元素 ---
     bottom_frame = tk.Frame(app.root, bg=default_bg)
     bottom_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=2)
-    tk.Label(bottom_frame, text=f"版本日期：{datetime.now().strftime('%Y年%m月%d日')}", font=app.font_normal, fg="#666666", bg=default_bg).pack(side=tk.LEFT)
-    tk.Label(bottom_frame, text="作者：顾江江", font=app.font_normal, fg="#666666", bg=default_bg).pack(side=tk.RIGHT)
+    
+    # 从配置中读取底部标签文本
+    date_text = f"{ui_texts['date_prefix']}{datetime.now().strftime('%Y年%m月%d日')}"
+    author_text = f"{ui_texts['author_prefix']}{app_info['author']}"
+    tk.Label(bottom_frame, text=date_text, font=app.font_normal, fg="#666666", bg=default_bg).pack(side=tk.LEFT)
+    tk.Label(bottom_frame, text=author_text, font=app.font_normal, fg="#666666", bg=default_bg).pack(side=tk.RIGHT)
     
     disclaimer_frame = tk.Frame(app.root, pady=2, bg=default_bg)
     disclaimer_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10)
-    tk.Label(disclaimer_frame, text="本工具仅供骨科内部测试，请勿外传", font=app.font_disclaimer, fg="red", bg=default_bg).pack()
+    tk.Label(disclaimer_frame, text=ui_texts['disclaimer'], font=app.font_disclaimer, fg="red", bg=default_bg).pack()
 
     # --- 顶部标题 ---
     top_title_frame = tk.Frame(app.root, bg=default_bg)
     top_title_frame.pack(side=tk.TOP, fill=tk.X, pady=(10, 5))
-    tk.Label(top_title_frame, text="丹阳市人民医院", font=app.font_subtitle, fg="#0066cc", bg=default_bg).pack()
-    tk.Label(top_title_frame, text="日间手术随访表生成系统", font=app.font_title, bg=default_bg).pack()
+    # 从配置中读取标题文本
+    tk.Label(top_title_frame, text=ui_texts['subtitle'], font=app.font_subtitle, fg="#0066cc", bg=default_bg).pack()
+    tk.Label(top_title_frame, text=ui_texts['main_title'], font=app.font_title, bg=default_bg).pack()
 
     # --- 主内容区 (左右分割) ---
     main_pane = ttk.PanedWindow(app.root, orient=tk.HORIZONTAL)
@@ -58,11 +65,7 @@ def create_ui(app):
     sash_default = int(410 * s)
     sash_min = int(320 * s)
     sash_max = int(520 * s)
-
-    def set_initial_sash(event):
-        main_pane.sashpos(0, sash_default)
-        main_pane.unbind("<Configure>")
-    
+    def set_initial_sash(event): main_pane.sashpos(0, sash_default); main_pane.unbind("<Configure>")
     def limit_sash_movement(event):
         if event.x < sash_min: main_pane.sashpos(0, sash_min); return "break"
         if event.x > sash_max: main_pane.sashpos(0, sash_max); return "break"
@@ -151,6 +154,7 @@ def create_ui(app):
     
     app.log_text = scrolledtext.ScrolledText(progress_frame, height=5, state='disabled', font=app.font_normal, wrap=tk.WORD)
     app.log_text.pack(fill=tk.BOTH, expand=True)
+    # 从app实例上获取已经配置好的颜色标签
     for tag, config in app.log_text_tags.items():
         app.log_text.tag_config(tag, **config)
 
