@@ -6,6 +6,7 @@ GUI构建模块。
 import tkinter as tk
 from tkinter import ttk, scrolledtext
 from datetime import datetime
+from .tooltip import Tooltip # 导入新的Tooltip类
 
 def create_ui(app):
     """
@@ -79,8 +80,11 @@ def create_ui(app):
         ("---", None),
         ("清空选择", app.clear_excel_selection)
     ]
-    _create_dropdown_selector(file_frame, "出院患者列表:", app.excel_display_var, discharge_menu_items, app.font_normal)
-    
+    discharge_entry, discharge_label, _ = _create_dropdown_selector(file_frame, "出院患者列表:", app.excel_display_var, discharge_menu_items, app.font_normal)
+    Tooltip(discharge_entry, "必须项。选择包含所有患者出院信息的主Excel文件。")
+    Tooltip(discharge_label, "必须项。选择包含所有患者出院信息的主Excel文件。")
+
+
     # --- 手术查询文件 ---
     surgery_frame = ttk.LabelFrame(file_frame, text="手术查询文件 (可选, 用于补充床号)", padding=5)
     surgery_frame.pack(fill=tk.X, expand=True, pady=3)
@@ -98,6 +102,10 @@ def create_ui(app):
     surgery_menu.add_command(label="清空列表", command=app.clear_surgery_query_files)
     surgery_menubutton.config(menu=surgery_menu)
     surgery_menubutton.pack(fill=tk.X, pady=1)
+    # 为手术查询部分添加提示
+    Tooltip(app.surgery_listbox, "（可选）添加一个或多个手术记录文件，用于自动匹配和补充主列表中缺失的床号信息。")
+    Tooltip(surgery_menubutton, "管理手术查询文件列表。")
+
     
     word_menu_items = [
         ("选择文件", app.select_template_file),
@@ -106,14 +114,20 @@ def create_ui(app):
         ("---", None),
         ("清空选择", app.clear_template_selection)
     ]
-    _create_dropdown_selector(file_frame, "Word模板:", app.template_display_var, word_menu_items, app.font_normal)
+    word_entry, word_label, _ = _create_dropdown_selector(file_frame, "Word模板:", app.template_display_var, word_menu_items, app.font_normal)
+    Tooltip(word_entry, "必须项。选择用于生成随访表的Word模板文件，或选择使用软件内置的默认模板。")
+    Tooltip(word_label, "必须项。选择用于生成随访表的Word模板文件，或选择使用软件内置的默认模板。")
+
     
     output_dir_items = [
         ("选择文件夹", app.select_output_dir),
         ("---", None),
         ("清空选择", app.clear_output_dir_selection)
     ]
-    _create_dropdown_selector(file_frame, "输出文件夹:", app.output_dir_display_var, output_dir_items, app.font_normal)
+    output_entry, output_label, _ = _create_dropdown_selector(file_frame, "输出文件夹:", app.output_dir_display_var, output_dir_items, app.font_normal)
+    Tooltip(output_entry, "必须项。选择一个文件夹用于保存所有生成的Word文档。")
+    Tooltip(output_label, "必须项。选择一个文件夹用于保存所有生成的Word文档。")
+
     
     # --- 控制和进度条 ---
     left_bottom_container = ttk.Frame(left_panel)
@@ -125,6 +139,8 @@ def create_ui(app):
     style.configure("Stop.TButton", foreground="white", background="#E81123", font=app.font_button)
     app.start_button = ttk.Button(control_frame, text="开始生成", command=app.toggle_generation, style="Accent.TButton")
     app.start_button.pack(pady=5, ipady=5, ipadx=20)
+    Tooltip(app.start_button, "点击开始处理数据并生成Word文档。\n处理过程中，此按钮会变为“停止生成”。")
+
 
     # --- 右侧面板 ---
     progress_frame = ttk.LabelFrame(right_panel, text="处理进度与日志", padding=10)
@@ -154,6 +170,7 @@ def _create_dropdown_selector(parent, label_text, string_var, menu_items, font):
     """
     创建带有下拉菜单按钮的文件/目录选择器行。
     使用grid布局管理器来确保输入框可以正确缩放。
+    返回创建的 (Entry, Label, Menubutton) 控件元组，以便可以为其绑定Tooltip。
     """
     row_frame = ttk.Frame(parent)
     row_frame.pack(fill=tk.X, expand=True, pady=1)
@@ -162,8 +179,8 @@ def _create_dropdown_selector(parent, label_text, string_var, menu_items, font):
     # 配置grid的列权重，让第1列（输入框）可以伸缩
     row_frame.columnconfigure(1, weight=1)
 
-    label = ttk.Label(row_frame, text=label_text, width=12, font=font)
-    label.grid(row=0, column=0, sticky='w', padx=(0, 5))
+    label_widget = ttk.Label(row_frame, text=label_text, width=12, font=font)
+    label_widget.grid(row=0, column=0, sticky='w', padx=(0, 5))
     
     entry = ttk.Entry(row_frame, textvariable=string_var, state='readonly', font=font)
     # 使用 sticky='ew' 让输入框水平填充其单元格
@@ -174,9 +191,17 @@ def _create_dropdown_selector(parent, label_text, string_var, menu_items, font):
     # -----------------
     
     menu = tk.Menu(menubutton, tearoff=False)
-    for label, command in menu_items:
-        if label == "---":
+    # --- 错误修复 ---
+    # 在循环中使用不同的变量名(item_text)，以避免覆盖外部的 'label' 控件变量
+    for item_text, command in menu_items:
+        if item_text == "---":
             menu.add_separator()
         else:
-            menu.add_command(label=label, command=command)
+            menu.add_command(label=item_text, command=command)
     menubutton.config(menu=menu)
+    
+    # 为 "选项..." 按钮添加提示
+    Tooltip(menubutton, "点击展开操作菜单")
+    
+    # 返回所有创建的控件，以便外部可以为它们分别添加提示
+    return entry, label_widget, menubutton
