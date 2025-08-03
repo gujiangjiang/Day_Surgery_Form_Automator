@@ -129,7 +129,7 @@ class MainApp:
                     new_state = tk.DISABLED if is_busy else 'readonly'
                     widget.config(state=new_state)
                 else:
-                    # 对于其他控件（如ttk.Menubutton）
+                    # 对于其他控件（如ttk.Menubutton, ttk.Button）
                     new_state = tk.DISABLED if is_busy else tk.NORMAL
                     widget.config(state=new_state)
             except tk.TclError:
@@ -386,6 +386,26 @@ class MainApp:
         except Exception as e:
             self.log(f"导出日志失败: {e}", level="error")
             self.show_message("error", "导出失败", f"无法将日志保存到指定位置。\n错误: {e}")
+
+    # --- 新增：显示“关于”对话框的方法 ---
+    def show_about_dialog(self):
+        """显示“关于”对话框。"""
+        app_info = UI_CONFIG['app_info']
+        ui_texts = UI_CONFIG['texts']
+        
+        title = ui_texts['about_title']
+        
+        # 使用 .format() 格式化多行字符串
+        content = ui_texts['about_content'].format(
+            title=app_info['title'],
+            version=app_info['version'],
+            internal_version=app_info['internal_version'],
+            author=app_info['author'],
+            build_date=app_info['build_date']
+        )
+        
+        # 复用已有的线程安全的消息显示方法
+        self.show_message("info", title, content)
 
     def log(self, msg, level=None, add_timestamp=True):
         """

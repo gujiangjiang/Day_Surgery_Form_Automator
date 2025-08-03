@@ -52,10 +52,32 @@ def create_ui(app):
 
     # --- 顶部标题 ---
     top_title_frame = tk.Frame(app.root, bg=default_bg)
-    top_title_frame.pack(side=tk.TOP, fill=tk.X, pady=(10, 5))
+    top_title_frame.pack(side=tk.TOP, fill=tk.X, pady=(10, 5), padx=10)
+
+    # --- 新增：关于按钮 ---
+    # 定义一个简洁的按钮样式
+    style.configure("About.TButton", padding=0, relief="flat", background=default_bg)
+    style.map("About.TButton", background=[('active', '#e5f1fb')])
+    
+    about_button = ttk.Button(
+        top_title_frame, 
+        text="?", 
+        command=app.show_about_dialog, 
+        style="About.TButton",
+        width=2
+    )
+    about_button.pack(side=tk.RIGHT, anchor='n', pady=(5,0))
+    Tooltip(about_button, "关于本程序")
+    app.interactive_widgets.append(about_button) # 添加到禁用列表
+
+    # --- 标题容器，使其在剩余空间内居中 ---
+    title_container = tk.Frame(top_title_frame, bg=default_bg)
+    title_container.pack(side=tk.TOP, fill=tk.X, expand=True)
+
     # 从配置中读取标题文本
-    tk.Label(top_title_frame, text=ui_texts['subtitle'], font=app.font_subtitle, fg="#0066cc", bg=default_bg).pack()
-    tk.Label(top_title_frame, text=ui_texts['main_title'], font=app.font_title, bg=default_bg).pack()
+    tk.Label(title_container, text=ui_texts['subtitle'], font=app.font_subtitle, fg="#0066cc", bg=default_bg).pack()
+    tk.Label(title_container, text=ui_texts['main_title'], font=app.font_title, bg=default_bg).pack()
+
 
     # --- 主内容区 (左右分割) ---
     main_pane = ttk.PanedWindow(app.root, orient=tk.HORIZONTAL)
@@ -146,6 +168,7 @@ def create_ui(app):
     style.configure("Stop.TButton", foreground="white", background="#E81123", font=app.font_button)
     app.start_button = ttk.Button(control_frame, text="开始生成", command=app.toggle_generation, style="Accent.TButton")
     app.start_button.pack(pady=5, ipady=5, ipadx=20)
+    app.interactive_widgets.append(app.start_button)
     Tooltip(app.start_button, "点击开始处理数据并生成Word文档。\n处理过程中，此按钮会变为“停止生成”。")
 
 
