@@ -3,7 +3,7 @@
 模块功能：负责高效读取和解析Excel文件。
 采用单次遍历方法，避免重复读取文件。
 """
-import os
+from pathlib import Path # 导入Path类
 import openpyxl
 import xlrd
 from ...config import CONFIG
@@ -11,6 +11,7 @@ from ...utils import format_text, excel_date_to_str
 
 def _get_rows_generator(file_path, log_func, read_only=False):
     """根据文件扩展名，创建一个行的生成器。"""
+    # file_path在这里是字符串，使用 .lower().endswith() 是安全的
     if file_path.lower().endswith('.xls'):
         try:
             book = xlrd.open_workbook(file_path)
@@ -18,7 +19,7 @@ def _get_rows_generator(file_path, log_func, read_only=False):
             for i in range(sheet.nrows):
                 yield [sheet.cell_value(i, j) for j in range(sheet.ncols)], book.datemode
         except Exception as e:
-            log_func(f"读取 .xls 文件 '{os.path.basename(file_path)}' 时出错: {e}", "error")
+            log_func(f"读取 .xls 文件 '{Path(file_path).name}' 时出错: {e}", "error")
             return
     elif file_path.lower().endswith('.xlsx'):
         try:
@@ -27,7 +28,7 @@ def _get_rows_generator(file_path, log_func, read_only=False):
             for row in sheet.iter_rows(values_only=True):
                 yield row, 0
         except Exception as e:
-            log_func(f"使用 read_only={read_only} 模式读取 '{os.path.basename(file_path)}' 时出错: {e}", "error")
+            log_func(f"使用 read_only={read_only} 模式读取 '{Path(file_path).name}' 时出错: {e}", "error")
             return
     else:
         log_func(f"不支持的文件格式: {file_path}", "error")
@@ -84,6 +85,8 @@ def process_file(file_path, required_keys, processor_type, log_func):
         processed_records = []
         header_found = False
         skipped_count = 0
+        
+        file_name = Path(file_path).name # 获取文件名用于日志
 
         for i, (row_values, file_datemode) in enumerate(rows_generator):
             if row_values is None: continue
@@ -93,7 +96,7 @@ def process_file(file_path, required_keys, processor_type, log_func):
                 row_values_cleaned = {format_text(v) for v in row_values if v is not None}
                 
                 if required_cols_text.issubset(row_values_cleaned):
-                    log_func(f"在文件 '{os.path.basename(file_path)}' 中自动检测到标题行位于第 {i + 1} 行。")
+                    log_func(f"在文件 '{file_name}' 中自动检测到标题行位于第 {i + 1} 行。")
                     header_map = {format_text(col_name): idx for idx, col_name in enumerate(row_values)}
                     col_map = {}
                     for internal_key, excel_name in CONFIG['column_mapping'].items():
@@ -114,7 +117,7 @@ def process_file(file_path, required_keys, processor_type, log_func):
         
         return (processed_records, col_map) if header_found else (None, None)
 
-    log_func(f"正在分析文件: {os.path.basename(file_path)}")
+    log_func(f"正在分析文件: {Path(file_path).name}")
     
     if file_path.lower().endswith('.xlsx'):
         log_func("...尝试使用快速只读模式。")
@@ -131,5 +134,5 @@ def process_file(file_path, required_keys, processor_type, log_func):
         if records is not None:
             return records, col_map
 
-    log_func(f"在文件 '{os.path.basename(file_path)}' 中未能找到包含所有必需列的标题行: {', '.join({CONFIG['column_mapping'][key] for key in required_keys})}", "error")
+    log_func(f"在文件 '{Path(file_path).name}' 中未能找到包含所有必需列的标题行: {', '.join({CONFIG['column_mapping'][key] for key in required_keys})}", "error")
     return [], None

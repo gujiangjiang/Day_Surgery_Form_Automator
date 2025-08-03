@@ -6,7 +6,9 @@ GUI应用主逻辑模块。
 import os
 import sys
 import threading
+import subprocess # 导入subprocess用于跨平台打开文件
 from datetime import datetime
+from pathlib import Path # 导入Path类
 import tkinter as tk
 from tkinter import filedialog, messagebox
 
@@ -16,9 +18,9 @@ from . import ui_builder # 导入新的UI构建模块
 from .. import temp_manager # 导入新的临时文件管理器
 
 class MainApp:
-    def __init__(self, root, base_path): # 增加 base_path 参数
+    def __init__(self, root, base_path): # base_path 是一个Path对象
         self.root = root
-        self.base_path = base_path # 保存根目录路径
+        self.base_path = base_path # 保存根目录路径 (Path对象)
         
         # --- 状态和变量 ---
         self.surgery_query_files = []
@@ -30,7 +32,7 @@ class MainApp:
         self.template_display_var = tk.StringVar()
         self.output_dir_display_var = tk.StringVar()
 
-        # 用于存储完整路径的实例变量
+        # 用于存储完整路径的实例变量 (仍然是字符串，因为它们来自filedialog)
         self.excel_full_path = ""
         self.template_full_path = ""
         self.output_dir_full_path = ""
@@ -89,6 +91,21 @@ class MainApp:
         self.log(CONFIG.get("welcome_warning", ""), level="error", add_timestamp=False) # 添加警告语
         self.log(separator, add_timestamp=False)
 
+    def _open_file_cross_platform(self, file_path):
+        """跨平台安全地打开文件或文件夹。"""
+        try:
+            path_str = str(file_path) # 确保是字符串
+            if sys.platform == "win32":
+                os.startfile(path_str)
+            elif sys.platform == "darwin": # macOS
+                subprocess.run(["open", path_str], check=True)
+            else: # Linux and other Unix-like
+                subprocess.run(["xdg-open", path_str], check=True)
+        except (FileNotFoundError, subprocess.CalledProcessError) as e:
+             messagebox.showerror("打开失败", f"无法打开文件或目录：\n{file_path}\n\n错误: {e}")
+        except Exception as e:
+            messagebox.showerror("打开失败", f"发生未知错误：\n{e}")
+
     def open_template(self, template_type):
         """将模板复制到临时的只读文件并打开它。"""
         template_map = {
@@ -102,17 +119,18 @@ class MainApp:
             return
 
         try:
-            original_path = os.path.join(self.base_path, 'templates', template_name)
-            if not os.path.exists(original_path):
+            # 使用 pathlib 构建路径
+            original_path = self.base_path / 'templates' / template_name
+            if not original_path.exists():
                 messagebox.showerror("错误", f"模板文件未找到！\n请确保 '{template_name}' 文件存在于 'templates' 文件夹中。")
                 return
 
-            # 创建一个临时的、只读的副本
-            temp_path = temp_manager.create_temp_read_only_copy(original_path)
+            # 创建一个临时的、只读的副本 (返回Path对象)
+            temp_path = temp_manager.create_temp_read_only_copy(str(original_path))
 
             if temp_path:
-                os.startfile(temp_path)
-                self.log(f"已打开模板: {os.path.basename(temp_path)}", level="info")
+                self._open_file_cross_platform(temp_path)
+                self.log(f"已打开模板: {temp_path.name}", level="info")
             else:
                 messagebox.showerror("错误", "创建临时模板文件失败。")
 
@@ -134,7 +152,7 @@ class MainApp:
         path = self._select_path('file', "选择出院患者记录单", [("Excel文件", "*.xlsx *.xls")])
         if path:
             self.excel_full_path = path
-            self.excel_display_var.set(os.path.basename(path))
+            self.excel_display_var.set(Path(path).name) # 使用Path().name获取文件名
             self.log(f"已选择出院患者列表: {path}", level="info")
 
     def clear_excel_selection(self):
@@ -148,7 +166,7 @@ class MainApp:
             for path in paths:
                 if path not in self.surgery_query_files:
                     self.surgery_query_files.append(path)
-                    self.surgery_listbox.insert(tk.END, os.path.basename(path))
+                    self.surgery_listbox.insert(tk.END, Path(path).name) # 使用Path().name获取文件名
                     self.log(f"已添加手术查询文件: {path}", level="info")
 
     def clear_surgery_query_files(self):
@@ -161,7 +179,7 @@ class MainApp:
         path = self._select_path('file', "选择随访表模板", [("Word模板", "*.docx *.doc")])
         if path:
             self.template_full_path = path
-            self.template_display_var.set(os.path.basename(path))
+            self.template_display_var.set(Path(path).name) # 使用Path().name获取文件名
             self.log(f"已选择Word模板: {path}", level="info")
 
     def use_builtin_word_template(self):
@@ -180,7 +198,7 @@ class MainApp:
         path = self._select_path('directory', "选择保存位置")
         if path:
             self.output_dir_full_path = path
-            self.output_dir_display_var.set(os.path.basename(path))
+            self.output_dir_display_var.set(Path(path).name) # 使用Path().name获取文件夹名
             self.log(f"已选择输出文件夹: {path}", level="info")
             
     def clear_output_dir_selection(self):
@@ -207,10 +225,12 @@ class MainApp:
 
             template_path = ""
             if self.template_display_var.get() == "[使用内置模板]":
-                template_path = os.path.join(self.base_path, 'templates', CONFIG['follow_up_template_name'])
-                if not os.path.exists(template_path):
+                # 使用 pathlib 构建路径
+                template_path_obj = self.base_path / 'templates' / CONFIG['follow_up_template_name']
+                if not template_path_obj.exists():
                     self.show_message("error", "错误", f"内置Word模板未找到！\n请确保 '{CONFIG['follow_up_template_name']}' 文件存在于 'templates' 文件夹中。")
                     return
+                template_path = str(template_path_obj) # 传递字符串路径给核心逻辑
             else:
                 template_path = self.template_full_path
             
@@ -283,7 +303,8 @@ class MainApp:
             return
 
         try:
-            with open(filepath, 'w', encoding='utf-8') as f:
+            # 使用 with Path(filepath).open(...) 确保正确处理
+            with Path(filepath).open('w', encoding='utf-8') as f:
                 f.write(log_content)
             self.log(f"日志已成功导出到: {filepath}", level="info")
             self.show_message("info", "成功", f"日志已成功导出到:\n{filepath}")

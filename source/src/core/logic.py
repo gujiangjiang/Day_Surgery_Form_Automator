@@ -3,10 +3,10 @@
 核心业务逻辑编排模块。
 此类协调数据读取、数据库处理和文档生成。
 """
-import os
 import traceback
 import threading
 from collections import deque
+from pathlib import Path # 导入Path类
 
 # 导入路径已更新以反映 'modules' 子文件夹
 from .modules import excel_reader
@@ -20,7 +20,8 @@ class DocumentGenerator:
         self.excel_path = excel_path
         self.surgery_query_paths = surgery_query_paths
         self.template_path = template_path
-        self.output_dir = output_dir
+        # 将输出目录确保为Path对象
+        self.output_dir = Path(output_dir)
         
         # --- 回调函数 ---
         self.log = log_callback
@@ -92,7 +93,8 @@ class DocumentGenerator:
         """主执行函数，负责编排整个流程"""
         db_manager = None
         try:
-            os.makedirs(self.output_dir, exist_ok=True)
+            # 使用Path对象创建目录
+            self.output_dir.mkdir(parents=True, exist_ok=True)
             db_manager = DatabaseManager(self.log)
 
             self._load_surgery_data(db_manager)

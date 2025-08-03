@@ -9,6 +9,7 @@ import time
 import tkinter as tk
 from tkinter import messagebox
 import ctypes
+from pathlib import Path # 导入Path类
 
 # 检查并安装必要的库
 try:
@@ -27,19 +28,24 @@ except ImportError:
     sys.exit(1)
 
 # 从src目录导入App主类
+# 假设main.py在项目根目录，而其他代码在src/下
+# 为了让这个导入生效，需要将src目录的父目录（即项目根目录）加入sys.path
+# get_base_path() 函数会返回这个根目录
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from src.gui.main_app import MainApp
+
 
 def get_base_path():
     """
-    获取应用的根目录（即main.py所在的目录），
-    兼容源码运行和PyInstaller打包后的情况。
+    获取应用的根目录，兼容源码运行和PyInstaller打包后的情况。
+    返回一个Path对象。
     """
     if getattr(sys, 'frozen', False):
         # 如果程序被打包，base_path是可执行文件所在的目录
-        return os.path.dirname(sys.executable)
+        return Path(sys.executable).parent
     else:
         # 如果从源码运行，base_path是main.py所在的目录
-        return os.path.dirname(os.path.abspath(__file__))
+        return Path(__file__).resolve().parent
 
 # 在程序启动时就确定好根目录
 BASE_PATH = get_base_path()
@@ -108,29 +114,30 @@ def main():
     except Exception as e:
         print(f"设置DPI感知失败: {e}")
 
-    # 使用修正后的逻辑来获取资源路径
-    icon_path = os.path.join(BASE_PATH, 'assets', 'app.ico')
-    splash_path = os.path.join(BASE_PATH, 'assets', 'splash.png')
+    # 使用 pathlib 构建资源路径
+    icon_path = BASE_PATH / 'assets' / 'app.ico'
+    splash_path = BASE_PATH / 'assets' / 'splash.png'
 
     root = tk.Tk()
     root.withdraw()
 
     # 检查资源文件是否存在
-    if not os.path.exists(splash_path):
+    if not splash_path.exists():
         messagebox.showwarning("资源缺失", f"启动画面文件 'splash.png' 未找到！\n请确保它位于 'assets' 文件夹中。")
         splash = None # 确保splash变量存在
     else:
         splash = SplashScreen(root, splash_path)
 
-    if not os.path.exists(icon_path):
+    if not icon_path.exists():
          print(f"警告：图标文件 'app.ico' 未找到。")
     else:
         try:
-            root.iconbitmap(icon_path)
+            # iconbitmap 在某些系统下可能需要字符串路径
+            root.iconbitmap(str(icon_path))
         except tk.TclError:
             print(f"警告：无法加载图标文件。")
 
-    # 将根目录路径传递给App实例，以便其他模块也能正确找到文件
+    # 将根目录路径(Path对象)传递给App实例，以便其他模块也能正确找到文件
     app_instance = MainApp(root, base_path=BASE_PATH)
 
     def show_main_window():

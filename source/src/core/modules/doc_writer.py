@@ -2,8 +2,8 @@
 """
 模块功能：负责生成最终的Word文档。
 """
-import os
 from datetime import datetime
+from pathlib import Path # 导入Path类
 from docx import Document
 from ...config import CONFIG
 from ...utils import get_day_after_discharge, format_text
@@ -12,10 +12,13 @@ def generate_single_document(row_data, template_path, output_dir):
     """
     根据一行数据生成单个Word文档。
     :param row_data: 一条 sqlite3.Row 对象。
-    :param template_path: 模板文件路径。
-    :param output_dir: 输出目录。
+    :param template_path: 模板文件路径 (字符串或Path对象)。
+    :param output_dir: 输出目录 (字符串或Path对象)。
     :return: (is_unmatched, filename) - 床号是否未知，以及生成的文件名。
     """
+    # 确保 output_dir 是 Path 对象
+    output_path = Path(output_dir)
+
     replacements = {}
     
     discharge_date_str = row_data['discharge_date']
@@ -47,11 +50,16 @@ def generate_single_document(row_data, template_path, output_dir):
         filename = f"{base_filename}{CONFIG['unknown_bed_filename_suffix']}.docx"
     else:
         filename = f"{base_filename}.docx"
+    
+    # 移除文件名中的非法字符
     filename = "".join(c for c in filename if c not in r'\/:*?"<>|')
     
     doc = Document(template_path)
     perform_replacements(doc, replacements)
-    doc.save(os.path.join(output_dir, filename))
+    
+    # 使用 pathlib 拼接路径并保存
+    full_output_path = output_path / filename
+    doc.save(full_output_path)
     
     return bed_number_is_unknown, filename
 
