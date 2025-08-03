@@ -40,14 +40,20 @@ class Tooltip:
             self.widget.after_cancel(id)
 
     def showtip(self, event=None):
-        """显示提示窗口。"""
-        x, y, _, _ = self.widget.bbox("insert")
-        x += self.widget.winfo_rootx() + 25
-        y += self.widget.winfo_rooty() + 20
+        """
+        显示提示窗口。
+        此方法经过修改，以通用方式定位提示框，避免特定控件的兼容性问题。
+        """
+        # --- 错误修复 ---
+        # 移除 self.widget.bbox("insert")，因为它不适用于所有控件（如Listbox）。
+        # 改为使用控件的winfo_rootx/y和winfo_height来通用地定位提示框。
+        # 这会将提示框放置在控件正下方，并带有一些偏移量。
+        x = self.widget.winfo_rootx() + 20
+        y = self.widget.winfo_rooty() + self.widget.winfo_height() + 5
 
         self.tooltip_window = tw = tk.Toplevel(self.widget)
         tw.wm_overrideredirect(True) # 无边框窗口
-        tw.wm_geometry(f"+{x}+{y}")
+        tw.wm_geometry(f"+{int(x)}+{int(y)}") # 确保坐标是整数
 
         label = tk.Label(tw, text=self.text, justify='left',
                          background="#ffffe0", relief='solid', borderwidth=1,
@@ -61,4 +67,3 @@ class Tooltip:
         self.tooltip_window = None
         if tw:
             tw.destroy()
-
