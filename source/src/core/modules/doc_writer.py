@@ -5,7 +5,7 @@
 from datetime import datetime
 from pathlib import Path # 导入Path类
 from docx import Document
-from ...config import CONFIG
+from ...config import CONFIG # 导入业务逻辑配置
 from ...utils import get_day_after_discharge, format_text
 
 def generate_single_document(row_data, template_path, output_dir):
@@ -41,11 +41,23 @@ def generate_single_document(row_data, template_path, output_dir):
             replacements[placeholder] = final_bed_number if not bed_number_is_unknown else CONFIG["unknown_bed_placeholder"]
         else:
             replacements[placeholder] = format_text(row_data[key])
-
-    patient_name = replacements.get("{{姓名}}", "未知姓名")
-    department = replacements.get("{{科室}}", "未知科室")
     
-    base_filename = f"{patient_year_month}_{department}_日间手术随访_{replacements['{{随访日期}}']}_{patient_name}"
+    # --- 优化：从配置动态生成文件名 ---
+    # 1. 准备一个包含所有可用占位符实际值的字典
+    filename_context = {
+        "出院年月": patient_year_month,
+        "科室": replacements.get("{{科室}}", "未知科室"),
+        "随访日期": replacements.get("{{随访日期}}", "未知日期"),
+        "姓名": replacements.get("{{姓名}}", "未知姓名"),
+        "住院号": replacements.get("{{住院号}}", "未知住院号")
+    }
+
+    # 2. 从配置中读取文件名格式，并使用.format()方法填充
+    #    使用.get()提供一个默认格式，以防配置中缺少该键
+    default_format = "{出院年月}_{姓名}"
+    base_filename = CONFIG.get("output_filename_format", default_format).format(**filename_context)
+    
+    # 3. 根据床号是否未知，添加后缀
     if bed_number_is_unknown:
         filename = f"{base_filename}{CONFIG['unknown_bed_filename_suffix']}.docx"
     else:

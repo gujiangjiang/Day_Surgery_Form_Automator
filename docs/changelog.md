@@ -228,4 +228,6 @@
 - [重构] 调整 config.py 结构，将 UI_CONFIG 和 CONFIG 分离为两个独立的顶级配置字典。
 - [优化] 为 config.py 文件添加了完整和详细的中文注释，解释了每个配置项的作用。
 - [重构] 更新了 main_app.py 和 ui_builder.py 以适应新的配置结构。
+- [新增] 支持自定义输出文件名格式，可在 config.py 中进行配置。
+- [优化] config.py 中新增 output_filename_format 配置项，并提供可用占位符说明。
 
