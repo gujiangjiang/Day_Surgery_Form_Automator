@@ -69,13 +69,17 @@ class MainApp:
 
     def setup_window(self):
         """设置窗口大小并居中"""
-        app_info = CONFIG['UI_CONFIG']['app_info']
+        ui_config = CONFIG['UI_CONFIG']
+        app_info = ui_config['app_info']
+        layout_config = ui_config['layout']['window']
+
         window_title = f"{app_info['title']} V{app_info['version']}"
         self.root.title(window_title)
         
         s = self.scaling_factor
-        width = int(685 * s)
-        height = int(535 * s)
+        # 从配置中计算窗口大小
+        width = int(layout_config['base_width'] * s)
+        height = int(layout_config['base_height'] * s)
         
         screen_width = self.root.winfo_screenwidth()
         screen_height = self.root.winfo_screenheight()
@@ -83,8 +87,11 @@ class MainApp:
         pos_x = (screen_width // 2) - (width // 2)
         pos_y = (screen_height // 2) - (height // 2)
         
-        self.root.geometry(f"{width}x{height}+{pos_x}+{pos_y}") 
-        self.root.resizable(False, False)
+        self.root.geometry(f"{width}x{height}+{pos_x}+{pos_y}")
+        
+        # 从配置中设置窗口是否可调整大小
+        resizable = layout_config['resizable']
+        self.root.resizable(resizable, resizable)
 
     def _display_welcome_message(self):
         """在日志区显示欢迎和提示信息。"""

@@ -60,11 +60,13 @@ def create_ui(app):
     right_panel = ttk.Frame(main_pane, padding=(5, 5, 5, 5))
     main_pane.add(right_panel)
     
-    # --- 分割线位置控制 (已恢复) ---
+    # 从配置中读取 PanedWindow 的布局参数
+    pane_config = ui_config['layout']['paned_window']
     s = app.scaling_factor
-    sash_default = int(410 * s)
-    sash_min = int(320 * s)
-    sash_max = int(520 * s)
+    sash_default = int(pane_config['sash_default'] * s)
+    sash_min = int(pane_config['sash_min'] * s)
+    sash_max = int(pane_config['sash_max'] * s)
+
     def set_initial_sash(event): main_pane.sashpos(0, sash_default); main_pane.unbind("<Configure>")
     def limit_sash_movement(event):
         if event.x < sash_min: main_pane.sashpos(0, sash_min); return "break"

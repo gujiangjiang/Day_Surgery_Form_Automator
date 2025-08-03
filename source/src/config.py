@@ -76,6 +76,19 @@ CONFIG = {
                 "error": {"foreground": "red"},
                 "info": {"foreground": "#008B8B"} # 深青色
             }
+        },
+
+        "layout": {
+            "window": {
+                "base_width": 685,
+                "base_height": 535,
+                "resizable": False # 窗口是否可调整大小
+            },
+            "paned_window": {
+                "sash_default": 410, # 左右分割线的默认位置
+                "sash_min": 320,     # 分割线可移动的最小位置
+                "sash_max": 520      # 分割线可移动的最大位置
+            }
         }
     }
 }
