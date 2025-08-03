@@ -5,7 +5,7 @@ GUI构建模块。
 """
 import tkinter as tk
 from tkinter import ttk, scrolledtext
-from datetime import datetime
+# from datetime import datetime  # 不再需要导入datetime
 from .tooltip import Tooltip
 from ..config import UI_CONFIG # 只导入UI配置
 
@@ -40,8 +40,8 @@ def create_ui(app):
     bottom_frame = tk.Frame(app.root, bg=default_bg)
     bottom_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=2)
     
-    # 从配置中读取底部标签文本
-    date_text = f"{ui_texts['date_prefix']}{datetime.now().strftime('%Y年%m月%d日')}"
+    # --- 修改：从配置中读取固定的版本日期 ---
+    date_text = f"{ui_texts['date_prefix']}{app_info['build_date']}"
     author_text = f"{ui_texts['author_prefix']}{app_info['author']}"
     tk.Label(bottom_frame, text=date_text, font=app.font_normal, fg="#666666", bg=default_bg).pack(side=tk.LEFT)
     tk.Label(bottom_frame, text=author_text, font=app.font_normal, fg="#666666", bg=default_bg).pack(side=tk.RIGHT)
