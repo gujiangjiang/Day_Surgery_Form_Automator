@@ -53,7 +53,9 @@ UI_CONFIG = {
             "warning": {"foreground": "#FF8C00"}, # 警告（暗橙色）
             "error": {"foreground": "red"},       # 错误（红色）
             "info": {"foreground": "#008B8B"}     # 信息（深青色）
-        }
+        },
+        # 新增：定义了控件在禁用状态下的背景色
+        "disabled_bg": "#f0f0f0" # 标准的灰色
     },
 
     # --- 布局配置 ---

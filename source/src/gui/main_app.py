@@ -11,6 +11,7 @@ from datetime import datetime
 from pathlib import Path # 导入Path类
 import tkinter as tk
 from tkinter import filedialog, messagebox
+from tkinter import ttk # 导入ttk
 
 from ..config import CONFIG, UI_CONFIG # 分别导入业务逻辑和UI配置
 from ..core.logic import DocumentGenerator
@@ -45,6 +46,9 @@ class MainApp:
         # --- 构建UI ---
         # 将UI构建委托给ui_builder模块
         ui_builder.create_ui(self)
+
+        self.listbox_original_bg = self.surgery_listbox.cget("background")
+
         self._display_welcome_message()
 
     def _get_scaling_factor(self):
@@ -106,8 +110,8 @@ class MainApp:
         设置界面的忙碌状态，通过禁用/启用控件实现。
         :param is_busy: 布尔值，True表示忙碌，False表示空闲。
         """
-        new_state = tk.DISABLED if is_busy else tk.NORMAL
         cursor_type = "watch" if is_busy else ""
+        disabled_bg = UI_CONFIG['colors']['disabled_bg']
 
         # 更改鼠标指针
         self.root.config(cursor=cursor_type)
@@ -117,8 +121,16 @@ class MainApp:
             try:
                 # Listbox需要特殊处理，因为它没有'state'选项，但可以通过禁用导出选择来达到类似效果
                 if isinstance(widget, tk.Listbox):
-                    widget.config(exportselection=not is_busy)
+                    new_state = tk.DISABLED if is_busy else tk.NORMAL
+                    new_bg = disabled_bg if is_busy else self.listbox_original_bg
+                    widget.config(state=new_state, bg=new_bg)
+                elif isinstance(widget, ttk.Entry):
+                    # 对于ttk.Entry，恢复状态为'readonly'
+                    new_state = tk.DISABLED if is_busy else 'readonly'
+                    widget.config(state=new_state)
                 else:
+                    # 对于其他控件（如ttk.Menubutton）
+                    new_state = tk.DISABLED if is_busy else tk.NORMAL
                     widget.config(state=new_state)
             except tk.TclError:
                 # 忽略某些控件可能没有state属性的错误

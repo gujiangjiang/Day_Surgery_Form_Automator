@@ -21,6 +21,13 @@ def create_ui(app):
     style = ttk.Style(app.root)
     if "clam" in style.theme_names():
         style.theme_use("clam")
+
+    # --- 新增：为ttk.Entry定义禁用时的背景色 ---
+    disabled_bg = UI_CONFIG['colors']['disabled_bg']
+    # 'map' 允许我们根据控件的状态来定义其外观
+    # fieldbackground 是输入框内部的背景
+    style.map('TEntry', fieldbackground=[('disabled', disabled_bg)])
+    
     default_bg = style.lookup('TFrame', 'background')
     app.root.configure(bg=default_bg)
 
@@ -85,8 +92,8 @@ def create_ui(app):
         ("清空选择", app.clear_excel_selection)
     ]
     # 捕获返回的控件，并将需要禁用的Menubutton添加到列表中
-    _, _, discharge_menubutton = _create_dropdown_selector(file_frame, "出院患者列表:", app.excel_display_var, discharge_menu_items, app.font_normal)
-    app.interactive_widgets.append(discharge_menubutton)
+    discharge_entry, _, discharge_menubutton = _create_dropdown_selector(file_frame, "出院患者列表:", app.excel_display_var, discharge_menu_items, app.font_normal)
+    app.interactive_widgets.extend([discharge_entry, discharge_menubutton])
 
     # --- 手术查询文件 ---
     surgery_frame = ttk.LabelFrame(file_frame, text="手术查询文件 (可选, 用于补充床号)", padding=5)
@@ -118,8 +125,8 @@ def create_ui(app):
         ("---", None),
         ("清空选择", app.clear_template_selection)
     ]
-    _, _, word_menubutton = _create_dropdown_selector(file_frame, "Word模板:", app.template_display_var, word_menu_items, app.font_normal)
-    app.interactive_widgets.append(word_menubutton)
+    word_entry, _, word_menubutton = _create_dropdown_selector(file_frame, "Word模板:", app.template_display_var, word_menu_items, app.font_normal)
+    app.interactive_widgets.extend([word_entry, word_menubutton])
 
     
     output_dir_items = [
@@ -127,8 +134,8 @@ def create_ui(app):
         ("---", None),
         ("清空选择", app.clear_output_dir_selection)
     ]
-    _, _, output_menubutton = _create_dropdown_selector(file_frame, "输出文件夹:", app.output_dir_display_var, output_dir_items, app.font_normal)
-    app.interactive_widgets.append(output_menubutton)
+    output_entry, _, output_menubutton = _create_dropdown_selector(file_frame, "输出文件夹:", app.output_dir_display_var, output_dir_items, app.font_normal)
+    app.interactive_widgets.extend([output_entry, output_menubutton])
 
     
     # --- 控制和进度条 ---
