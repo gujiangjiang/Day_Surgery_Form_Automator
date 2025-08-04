@@ -123,6 +123,8 @@ class DocumentGenerator:
                     logger.error(f"处理行 {index + 1} (姓名: {row['name']}) 时发生错误: {e}", exc_info=True)
                 self.update_progress((index + 1) / total_rows * 100)
             
+            # --- 修复：在循环结束后，无论是否被手动停止，都打印分隔符 ---
+            # 如果是正常完成，则先打印完成信息
             if not self.stop_event.is_set():
                 logger.info(f"处理完成！共生成 {success_count} 份文档，已保存至: {self.output_dir}")
                 
@@ -139,8 +141,9 @@ class DocumentGenerator:
                     f"文件保存在: {self.output_dir}"
                 )
                 self.show_message("info", "完成", final_message)
-                
-                logger.notice(separator, extra={'simple': True})
+            
+            # 最终的分隔符，确保在所有情况下（完成、停止、错误）都能和 finally 块分开
+            logger.notice(separator, extra={'simple': True})
 
         except Exception as e:
             if not self.stop_event.is_set():
