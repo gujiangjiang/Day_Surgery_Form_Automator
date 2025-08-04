@@ -36,60 +36,6 @@ class DocumentGenerator:
         self.stop_event.set()
         self.log("正在发送停止信号...", level="warning")
 
-    def _load_surgery_data(self, db_manager):
-        """加载所有手术查询文件数据到数据库"""
-        self.log("开始处理手术查询文件...")
-        if not self.surgery_query_paths:
-            self.log("未选择任何手术查询文件，跳过床号补充步骤。", level="info")
-            return
-
-        total_records_added = 0
-        for file_path in self.surgery_query_paths:
-            if self.stop_event.is_set(): return
-            
-            records, _ = excel_reader.process_file(
-                file_path=file_path,
-                required_keys=CONFIG['required_surgery_cols'],
-                processor_type='surgery',
-                log_func=self.log
-            )
-            
-            if records:
-                count = db_manager.load_surgery_data(records)
-                total_records_added += count
-        
-        self.log(f"所有手术查询文件处理完毕，共加载了 {total_records_added} 条有效的床号记录。", level="info")
-
-    def _load_patient_data(self, db_manager):
-        """加载主患者列表文件数据到数据库"""
-        self.log("开始处理主患者列表文件...") # 为主文件处理也增加明确的日志
-        records, col_map = excel_reader.process_file(
-            file_path=self.excel_path,
-            required_keys=CONFIG['required_patient_cols'],
-            processor_type='patient',
-            log_func=self.log
-        )
-
-        if not records:
-            required_cols_str = ', '.join([CONFIG['column_mapping'][k] for k in CONFIG['required_patient_cols']])
-            self.show_message("error", "读取失败", f"在 '出院患者列表' 文件中无法自动定位标题行或未找到任何有效数据。\n请确保文件包含以下列: {required_cols_str}")
-            return False
-
-        if col_map and 'bed_number' not in col_map:
-            if self.surgery_query_paths:
-                self.log("警告：主Excel文件中未找到“床号”列。将尝试从手术查询文件补充。", level="warning")
-            else:
-                self.log("警告：主Excel文件中未找到“床号”列，床号信息可能为空。", level="warning")
-
-        count = db_manager.load_patient_data(records)
-
-        if count > 0:
-            self.log(f"成功从主文件加载了 {count} 条患者记录。", level="info")
-            return True
-        else:
-            self.log("未从主文件中加载任何有效的患者记录。", level="error")
-            return False
-
     def run(self):
         """主执行函数，负责编排整个流程"""
         db_manager = None
@@ -101,13 +47,60 @@ class DocumentGenerator:
             self.output_dir.mkdir(parents=True, exist_ok=True)
             db_manager = DatabaseManager(self.log)
 
-            self._load_surgery_data(db_manager)
+            # --- 重构：将手术文件处理逻辑直接移入run方法 ---
+            self.log("开始处理手术查询文件...")
+            if not self.surgery_query_paths:
+                self.log("未选择任何手术查询文件，跳过床号补充步骤。", level="info")
+            else:
+                total_records_added = 0
+                for file_path in self.surgery_query_paths:
+                    if self.stop_event.is_set(): return
+                    
+                    records, _ = excel_reader.process_file(
+                        file_path=file_path,
+                        required_keys=CONFIG['required_surgery_cols'],
+                        processor_type='surgery',
+                        log_func=self.log
+                    )
+                    
+                    if records:
+                        count = db_manager.load_surgery_data(records)
+                        total_records_added += count
+                self.log(f"所有手术查询文件处理完毕，共加载了 {total_records_added} 条有效的床号记录。", level="info")
+
             if self.stop_event.is_set(): return
 
-            if not self._load_patient_data(db_manager):
+            # --- 重构：将主患者文件处理逻辑直接移入run方法 ---
+            self.log("开始处理主患者列表文件...")
+            patient_records, col_map = excel_reader.process_file(
+                file_path=self.excel_path,
+                required_keys=CONFIG['required_patient_cols'],
+                processor_type='patient',
+                log_func=self.log
+            )
+
+            if not patient_records:
+                required_cols_str = ', '.join([CONFIG['column_mapping'][k] for k in CONFIG['required_patient_cols']])
+                self.show_message("error", "读取失败", f"在 '出院患者列表' 文件中无法自动定位标题行或未找到任何有效数据。\n请确保文件包含以下列: {required_cols_str}")
                 return
+
+            if col_map and 'bed_number' not in col_map:
+                if self.surgery_query_paths:
+                    self.log("警告：主Excel文件中未找到“床号”列。将尝试从手术查询文件补充。", level="warning")
+                else:
+                    self.log("警告：主Excel文件中未找到“床号”列，床号信息可能为空。", level="warning")
+
+            patient_count = db_manager.load_patient_data(patient_records)
+
+            if patient_count <= 0:
+                self.log("未从主文件中加载任何有效的患者记录。", level="error")
+                return
+            
+            self.log(f"成功从主文件加载了 {patient_count} 条患者记录。", level="info")
+
             if self.stop_event.is_set(): return
 
+            # --- 后续处理流程 ---
             final_patient_rows = db_manager.query_final_data()
             if self.stop_event.is_set(): return
 

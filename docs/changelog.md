@@ -244,4 +244,6 @@
 - [重构] 新建 ui_components.py 模块，用于存放可复用的自定义UI组件。
 - [优化] 调整了 main.py, app_controller.py, 和 ui_builder.py 的代码以适应新的模块化结构。
 - [优化] 为文件解析操作增加即时日志反馈。
+- [重构] 将文件解析的核心逻辑从私有方法移入 run 方法，使后台线程的执行流程更清晰、更直观。
+- [优化] 删除了不再使用的 _load_surgery_data 和 _load_patient_data 私有方法。
 
