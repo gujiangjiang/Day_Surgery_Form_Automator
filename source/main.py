@@ -27,13 +27,11 @@ except ImportError:
     )
     sys.exit(1)
 
-# 从src目录导入App主类
-# 假设main.py在项目根目录，而其他代码在src/下
-# 为了让这个导入生效，需要将src目录的父目录（即项目根目录）加入sys.path
-# get_base_path() 函数会返回这个根目录
+# 将项目根目录添加到sys.path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-# --- 修改：更新导入的类名 ---
+
 from src.gui.app_controller import AppController
+from src.logger_setup import setup_logging
 
 
 def get_base_path():
@@ -89,6 +87,9 @@ def main():
     """
     主函数，负责初始化和运行应用。
     """
+    # 在程序最开始初始化日志系统
+    setup_logging(BASE_PATH)
+
     SPLASH_MIN_DURATION = 1500  # 1.5秒
     start_time = time.time()
     
@@ -154,7 +155,7 @@ def main():
     if delay < 0:
         delay = 0
 
-    # 3. 在指定的延迟后执行 `show_main_window` 函数
+    # 在指定的延迟后执行 `show_main_window` 函数
     root.after(delay, show_main_window)
     
     root.mainloop()

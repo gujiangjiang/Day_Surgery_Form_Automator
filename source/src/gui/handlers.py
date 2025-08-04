@@ -7,6 +7,7 @@ import os
 import sys
 import threading
 import subprocess
+import logging
 from datetime import datetime
 from pathlib import Path
 import tkinter as tk
@@ -15,6 +16,9 @@ from tkinter import filedialog, messagebox
 from ..config import CONFIG, UI_CONFIG
 from ..core.logic import DocumentGenerator
 from .. import temp_manager
+
+# 获取该模块的logger实例
+logger = logging.getLogger(__name__)
 
 class Handlers:
     def __init__(self, app):
@@ -35,8 +39,10 @@ class Handlers:
             else:
                 subprocess.run(["xdg-open", path_str], check=True)
         except (FileNotFoundError, subprocess.CalledProcessError) as e:
+             logger.error(f"无法打开文件或目录：{file_path}", exc_info=True)
              messagebox.showerror("打开失败", f"无法打开文件或目录：\n{file_path}\n\n错误: {e}")
         except Exception as e:
+            logger.error(f"打开文件时发生未知错误", exc_info=True)
             messagebox.showerror("打开失败", f"发生未知错误：\n{e}")
 
     def open_template(self, template_type):
@@ -61,11 +67,12 @@ class Handlers:
 
             if temp_path:
                 self._open_file_cross_platform(temp_path)
-                self.app.log(f"已打开模板: {temp_path.name}", level="info")
+                logger.info(f"已打开模板: {temp_path.name}")
             else:
                 messagebox.showerror("错误", "创建临时模板文件失败。")
 
         except Exception as e:
+            logger.error(f"无法打开模板文件", exc_info=True)
             messagebox.showerror("打开失败", f"无法打开模板文件。\n错误: {e}")
 
     def _select_path(self, selection_type, title, filetypes=None):
@@ -84,13 +91,13 @@ class Handlers:
         if path:
             self.app.excel_full_path = path
             self.app.excel_display_var.set(Path(path).name)
-            self.app.log(f"已选择出院患者列表: {path}", level="info")
+            logger.info(f"已选择出院患者列表: {path}")
 
     def clear_excel_selection(self):
         """清空出院患者列表选择。"""
         self.app.excel_full_path = ""
         self.app.excel_display_var.set("")
-        self.app.log("已清空出院患者列表选择。", level="info")
+        logger.info("已清空出院患者列表选择。")
 
     def select_surgery_query_files(self):
         """选择手术查询文件。"""
@@ -100,13 +107,13 @@ class Handlers:
                 if path not in self.app.surgery_query_files:
                     self.app.surgery_query_files.append(path)
                     self.app.surgery_listbox.insert(tk.END, Path(path).name)
-                    self.app.log(f"已添加手术查询文件: {path}", level="info")
+                    logger.info(f"已添加手术查询文件: {path}")
 
     def clear_surgery_query_files(self):
         """清空手术查询文件列表。"""
         self.app.surgery_query_files.clear()
         self.app.surgery_listbox.delete(0, tk.END)
-        self.app.log("已清空手术查询文件列表。", level="info")
+        logger.info("已清空手术查询文件列表。")
 
     def select_template_file(self):
         """选择自定义的Word模板文件。"""
@@ -114,19 +121,19 @@ class Handlers:
         if path:
             self.app.template_full_path = path
             self.app.template_display_var.set(Path(path).name)
-            self.app.log(f"已选择Word模板: {path}", level="info")
+            logger.info(f"已选择Word模板: {path}")
 
     def use_builtin_word_template(self):
         """设置UI以表明正在使用内置模板。"""
         self.app.template_full_path = ""
         self.app.template_display_var.set("[使用内置模板]")
-        self.app.log("已选择使用内置Word模板。", level="info")
+        logger.info("已选择使用内置Word模板。")
         
     def clear_template_selection(self):
         """清空Word模板选择。"""
         self.app.template_full_path = ""
         self.app.template_display_var.set("")
-        self.app.log("已清空Word模板选择。", level="info")
+        logger.info("已清空Word模板选择。")
 
     def select_output_dir(self):
         """选择输出文件夹。"""
@@ -134,13 +141,13 @@ class Handlers:
         if path:
             self.app.output_dir_full_path = path
             self.app.output_dir_display_var.set(Path(path).name)
-            self.app.log(f"已选择输出文件夹: {path}", level="info")
+            logger.info(f"已选择输出文件夹: {path}")
             
     def clear_output_dir_selection(self):
         """清空输出文件夹选择。"""
         self.app.output_dir_full_path = ""
         self.app.output_dir_display_var.set("")
-        self.app.log("已清空输出文件夹选择。", level="info")
+        logger.info("已清空输出文件夹选择。")
 
     def _validate_inputs(self):
         """验证所有必需的输入项。"""
@@ -186,7 +193,7 @@ class Handlers:
             return
         
         app.progress_bar['value'] = 0
-        app.log(UI_CONFIG['texts'].get("log_separator", "---"), add_timestamp=False)
+        logger.notice(UI_CONFIG['texts'].get("log_separator", "---"), extra={'simple': True})
         app.start_button.config(text="停止生成", style="Stop.TButton")
         app._set_ui_busy(True)
 
@@ -195,7 +202,6 @@ class Handlers:
             surgery_query_paths=app.surgery_query_files,
             template_path=template_path, 
             output_dir=app.output_dir_full_path,
-            log_callback=app.log,
             progress_callback=app.update_progress,
             completion_callback=app.generation_finished,
             message_callback=app.show_message
@@ -211,6 +217,7 @@ class Handlers:
             app.log_text.delete('1.0', tk.END)
             app.log_text.config(state='disabled')
             app._display_welcome_message()
+            logger.info("日志区域已手动清空。")
 
     def export_log(self):
         """将日志内容导出到文件。"""
@@ -229,16 +236,16 @@ class Handlers:
         )
 
         if not filepath:
-            app.log("用户取消了日志导出。", level="info")
+            logger.info("用户取消了日志导出。")
             return
 
         try:
             with Path(filepath).open('w', encoding='utf-8') as f:
                 f.write(log_content)
-            app.log(f"日志已成功导出到: {filepath}", level="info")
+            logger.info(f"日志已成功导出到: {filepath}")
             app.show_message("info", "成功", f"日志已成功导出到:\n{filepath}")
         except Exception as e:
-            app.log(f"导出日志失败: {e}", level="error")
+            logger.error(f"导出日志失败", exc_info=True)
             app.show_message("error", "导出失败", f"无法将日志保存到指定位置。\n错误: {e}")
 
     def show_about_dialog(self):

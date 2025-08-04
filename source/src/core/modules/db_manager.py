@@ -3,12 +3,15 @@
 模块功能：管理所有与SQLite数据库的交互。
 """
 import sqlite3
+import logging # 导入logging模块
 from ...config import CONFIG
+
+# 获取该模块的logger实例
+logger = logging.getLogger(__name__)
 
 class DatabaseManager:
     """封装所有数据库操作的类"""
-    def __init__(self, log_func):
-        self.log = log_func
+    def __init__(self):
         self.conn = sqlite3.connect(':memory:')
         self.conn.row_factory = sqlite3.Row
         self._create_tables()
@@ -29,7 +32,7 @@ class DatabaseManager:
             )
         ''')
         self.conn.commit()
-        self.log("数据库表结构创建成功。")
+        logger.notice("内存数据库表结构创建成功。")
 
     def load_surgery_data(self, records):
         """批量加载手术数据到数据库"""
@@ -58,7 +61,7 @@ class DatabaseManager:
 
     def query_final_data(self):
         """执行SQL查询以合并数据并筛选出日间手术患者"""
-        self.log("正在通过SQL查询合并床号并筛选日间手术患者...")
+        logger.notice("正在通过SQL查询合并床号并筛选日间手术患者...")
         cur = self.conn.cursor()
         
         query = f"""
@@ -85,4 +88,4 @@ class DatabaseManager:
         """关闭数据库连接"""
         if self.conn:
             self.conn.close()
-            self.log("数据库连接已关闭。")
+            logger.notice("数据库连接已关闭。")

@@ -3,15 +3,18 @@
 模块功能：负责高效读取和解析Excel文件。
 采用单次遍历方法，避免重复读取文件。
 """
-from pathlib import Path # 导入Path类
+import logging # 导入logging模块
+from pathlib import Path
 import openpyxl
 import xlrd
 from ...config import CONFIG
 from ...utils import format_text, excel_date_to_str
 
-def _get_rows_generator(file_path, log_func, read_only=False):
+# 获取该模块的logger实例
+logger = logging.getLogger(__name__)
+
+def _get_rows_generator(file_path, read_only=False):
     """根据文件扩展名，创建一个行的生成器。"""
-    # file_path在这里是字符串，使用 .lower().endswith() 是安全的
     if file_path.lower().endswith('.xls'):
         try:
             book = xlrd.open_workbook(file_path)
@@ -19,7 +22,7 @@ def _get_rows_generator(file_path, log_func, read_only=False):
             for i in range(sheet.nrows):
                 yield [sheet.cell_value(i, j) for j in range(sheet.ncols)], book.datemode
         except Exception as e:
-            log_func(f"读取 .xls 文件 '{Path(file_path).name}' 时出错: {e}", "error")
+            logger.error(f"读取 .xls 文件 '{Path(file_path).name}' 时出错。", exc_info=True)
             return
     elif file_path.lower().endswith('.xlsx'):
         try:
@@ -28,10 +31,10 @@ def _get_rows_generator(file_path, log_func, read_only=False):
             for row in sheet.iter_rows(values_only=True):
                 yield row, 0
         except Exception as e:
-            log_func(f"使用 read_only={read_only} 模式读取 '{Path(file_path).name}' 时出错: {e}", "error")
+            logger.error(f"使用 read_only={read_only} 模式读取 '{Path(file_path).name}' 时出错。", exc_info=True)
             return
     else:
-        log_func(f"不支持的文件格式: {file_path}", "error")
+        logger.error(f"不支持的文件格式: {file_path}")
         return
 
 def _process_surgery_row(row_values, col_map, datemode):
@@ -69,15 +72,22 @@ def _process_patient_row(row_values, col_map, datemode):
     
     return [record.get(key, "") for key in internal_keys]
 
-def process_file(file_path, required_keys, processor_type, log_func):
+def process_file(file_path, processor_type='surgery'):
     """
     一次性读取并处理整个Excel文件，自动处理读取模式和标题行查找。
     :return: (list, dict) 包含所有已处理记录的列表和列映射字典。
     """
     processor_map = {'surgery': _process_surgery_row, 'patient': _process_patient_row}
     row_processor = processor_map.get(processor_type)
-    if not row_processor:
-        log_func(f"未知的处理器类型: {processor_type}", "error")
+    
+    required_keys_map = {
+        'surgery': CONFIG['required_surgery_cols'],
+        'patient': CONFIG['required_patient_cols']
+    }
+    required_keys = required_keys_map.get(processor_type)
+
+    if not row_processor or not required_keys:
+        logger.error(f"未知的处理器类型或未配置必须列: {processor_type}")
         return [], None
 
     def _process_stream(rows_generator):
@@ -86,7 +96,7 @@ def process_file(file_path, required_keys, processor_type, log_func):
         header_found = False
         skipped_count = 0
         
-        file_name = Path(file_path).name # 获取文件名用于日志
+        file_name = Path(file_path).name
 
         for i, (row_values, file_datemode) in enumerate(rows_generator):
             if row_values is None: continue
@@ -96,7 +106,7 @@ def process_file(file_path, required_keys, processor_type, log_func):
                 row_values_cleaned = {format_text(v) for v in row_values if v is not None}
                 
                 if required_cols_text.issubset(row_values_cleaned):
-                    log_func(f"在文件 '{file_name}' 中自动检测到标题行位于第 {i + 1} 行。")
+                    logger.notice(f"在文件 '{file_name}' 中自动检测到标题行位于第 {i + 1} 行。")
                     header_map = {format_text(col_name): idx for idx, col_name in enumerate(row_values)}
                     col_map = {}
                     for internal_key, excel_name in CONFIG['column_mapping'].items():
@@ -113,26 +123,26 @@ def process_file(file_path, required_keys, processor_type, log_func):
                     skipped_count += 1
         
         if skipped_count > 0:
-            log_func(f"因缺少必要信息，共跳过了 {skipped_count} 行。", "warning")
+            logger.warning(f"因缺少必要信息，共跳过了 {skipped_count} 行。")
         
         return (processed_records, col_map) if header_found else (None, None)
 
-    log_func(f"正在分析文件: {Path(file_path).name}")
+    logger.notice(f"正在分析文件: {Path(file_path).name}")
     
     if file_path.lower().endswith('.xlsx'):
-        log_func("...尝试使用快速只读模式。")
-        records, col_map = _process_stream(_get_rows_generator(file_path, log_func, read_only=True))
+        logger.notice("...尝试使用快速只读模式。")
+        records, col_map = _process_stream(_get_rows_generator(file_path, read_only=True))
         if records is not None:
             return records, col_map
 
-        log_func("...快速模式未能找到标题行或处理失败，自动切换到标准模式。", "warning")
-        records, col_map = _process_stream(_get_rows_generator(file_path, log_func, read_only=False))
+        logger.warning("...快速模式未能找到标题行或处理失败，自动切换到标准模式。")
+        records, col_map = _process_stream(_get_rows_generator(file_path, read_only=False))
         if records is not None:
             return records, col_map
     else:
-        records, col_map = _process_stream(_get_rows_generator(file_path, log_func, read_only=False))
+        records, col_map = _process_stream(_get_rows_generator(file_path, read_only=False))
         if records is not None:
             return records, col_map
 
-    log_func(f"在文件 '{Path(file_path).name}' 中未能找到包含所有必需列的标题行: {', '.join({CONFIG['column_mapping'][key] for key in required_keys})}", "error")
+    logger.error(f"在文件 '{Path(file_path).name}' 中未能找到包含所有必需列的标题行: {', '.join({CONFIG['column_mapping'][key] for key in required_keys})}")
     return [], None

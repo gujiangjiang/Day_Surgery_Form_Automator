@@ -246,4 +246,10 @@
 - [优化] 为文件解析操作增加即时日志反馈。
 - [重构] 将文件解析的核心逻辑从私有方法移入 run 方法，使后台线程的执行流程更清晰、更直观。
 - [优化] 删除了不再使用的 _load_surgery_data 和 _load_patient_data 私有方法。
+- [重构] 引入Python内置的logging模块，全面替代原有的日志回调系统。
+- [新增] 创建logger_setup.py模块，用于集中配置日志系统，支持同时输出到文件和UI界面。
+- [新增] 创建logger_handler.py模块，包含一个自定义的Tkinter日志处理器，用于将日志安全地显示在UI上。
+- [优化] 所有相关模块（main, app_controller, logic, handlers, db_manager, excel_reader）均已更新，使用新的日志系统。
+- [优化] config.py中新增日志相关配置项。
+- [修复] 修正了“处理完成”日志和弹窗消息，使其正确显示输出文件夹路径。
 

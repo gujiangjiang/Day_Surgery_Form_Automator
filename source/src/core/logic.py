@@ -5,18 +5,21 @@
 """
 import traceback
 import threading
+import logging
 from collections import deque
-from pathlib import Path # 导入Path类
+from pathlib import Path
 
-# 导入路径已更新以反映 'modules' 子文件夹
 from .modules import excel_reader
 from .modules import doc_writer
 from .modules.db_manager import DatabaseManager
 from ..config import CONFIG
 
+# 获取该模块的logger实例
+logger = logging.getLogger(__name__)
+
 class DocumentGenerator:
     def __init__(self, excel_path, surgery_query_paths, template_path, output_dir, 
-                 log_callback, progress_callback, completion_callback, message_callback):
+                 progress_callback, completion_callback, message_callback):
         self.excel_path = excel_path
         self.surgery_query_paths = surgery_query_paths
         self.template_path = template_path
@@ -24,60 +27,46 @@ class DocumentGenerator:
         self.output_dir = Path(output_dir)
         
         # --- 回调函数 ---
-        self.log = log_callback
         self.update_progress = progress_callback
         self.on_completion = completion_callback
-        self.show_message = message_callback # 用于显示 messagebox
+        self.show_message = message_callback
         
         self.stop_event = threading.Event()
 
     def stop(self):
         """设置停止事件，中断生成过程。"""
         self.stop_event.set()
-        self.log("正在发送停止信号...", level="warning")
+        logger.warning("正在发送停止信号...")
 
     def run(self):
         """主执行函数，负责编排整个流程"""
         db_manager = None
         try:
-            # --- 优化：在线程开始时立即提供反馈 ---
-            self.log("后台处理任务已启动，正在准备环境...", level="info")
+            logger.notice("后台处理任务已启动，正在准备环境...")
             
             # 使用Path对象创建目录
             self.output_dir.mkdir(parents=True, exist_ok=True)
-            db_manager = DatabaseManager(self.log)
+            db_manager = DatabaseManager()
 
-            # --- 重构：将手术文件处理逻辑直接移入run方法 ---
-            self.log("开始处理手术查询文件...")
+            # --- 手术文件处理 ---
+            logger.notice("开始处理手术查询文件...")
             if not self.surgery_query_paths:
-                self.log("未选择任何手术查询文件，跳过床号补充步骤。", level="info")
+                logger.notice("未选择任何手术查询文件，跳过床号补充步骤。")
             else:
                 total_records_added = 0
                 for file_path in self.surgery_query_paths:
                     if self.stop_event.is_set(): return
-                    
-                    records, _ = excel_reader.process_file(
-                        file_path=file_path,
-                        required_keys=CONFIG['required_surgery_cols'],
-                        processor_type='surgery',
-                        log_func=self.log
-                    )
-                    
+                    records, _ = excel_reader.process_file(file_path)
                     if records:
                         count = db_manager.load_surgery_data(records)
                         total_records_added += count
-                self.log(f"所有手术查询文件处理完毕，共加载了 {total_records_added} 条有效的床号记录。", level="info")
+                logger.info(f"所有手术查询文件处理完毕，共加载了 {total_records_added} 条有效的床号记录。")
 
             if self.stop_event.is_set(): return
 
-            # --- 重构：将主患者文件处理逻辑直接移入run方法 ---
-            self.log("开始处理主患者列表文件...")
-            patient_records, col_map = excel_reader.process_file(
-                file_path=self.excel_path,
-                required_keys=CONFIG['required_patient_cols'],
-                processor_type='patient',
-                log_func=self.log
-            )
+            # --- 主患者文件处理 ---
+            logger.notice("开始处理主患者列表文件...")
+            patient_records, col_map = excel_reader.process_file(self.excel_path, 'patient')
 
             if not patient_records:
                 required_cols_str = ', '.join([CONFIG['column_mapping'][k] for k in CONFIG['required_patient_cols']])
@@ -85,18 +74,15 @@ class DocumentGenerator:
                 return
 
             if col_map and 'bed_number' not in col_map:
-                if self.surgery_query_paths:
-                    self.log("警告：主Excel文件中未找到“床号”列。将尝试从手术查询文件补充。", level="warning")
-                else:
-                    self.log("警告：主Excel文件中未找到“床号”列，床号信息可能为空。", level="warning")
+                msg = "主Excel文件中未找到“床号”列。 "
+                msg += "将尝试从手术查询文件补充。" if self.surgery_query_paths else "床号信息可能为空。"
+                logger.warning(msg)
 
             patient_count = db_manager.load_patient_data(patient_records)
-
             if patient_count <= 0:
-                self.log("未从主文件中加载任何有效的患者记录。", level="error")
+                logger.error("未从主文件中加载任何有效的患者记录。")
                 return
-            
-            self.log(f"成功从主文件加载了 {patient_count} 条患者记录。", level="info")
+            logger.info(f"成功从主文件加载了 {patient_count} 条患者记录。")
 
             if self.stop_event.is_set(): return
 
@@ -105,52 +91,54 @@ class DocumentGenerator:
             if self.stop_event.is_set(): return
 
             if not final_patient_rows:
-                msg = f"错误：未找到住院天数 <= {CONFIG['day_surgery_max_days']} 天的记录。"
-                self.log(msg, level="error")
+                msg = f"未找到住院天数 <= {CONFIG['day_surgery_max_days']} 天的记录。"
+                logger.error(msg)
                 self.show_message("error", "无数据", msg)
                 return
 
             total_rows = len(final_patient_rows)
-            self.log(f"共找到 {total_rows} 条符合条件的记录，开始生成文档...", level="info")
+            logger.info(f"共找到 {total_rows} 条符合条件的记录，开始生成文档...")
             success_count = 0
             unmatched_patients = deque()
             
             for index, row in enumerate(final_patient_rows):
                 if self.stop_event.is_set():
-                    self.log("生成过程已由用户手动停止。", "warning")
+                    logger.warning("生成过程已由用户手动停止。")
                     break
                 try:
                     is_unmatched, filename = doc_writer.generate_single_document(row, self.template_path, self.output_dir)
-                    self.log(f"已生成: {filename}")
+                    logger.notice(f"已生成: {filename}")
                     if is_unmatched:
                         unmatched_patients.append(f"{row['name']} (住院号: {row['hospital_id']})")
                     success_count += 1
                 except Exception as e:
-                    self.log(f"处理行 {index + 1} (姓名: {row['name']}) 时发生错误: {e}", level="error")
+                    logger.error(f"处理行 {index + 1} (姓名: {row['name']}) 时发生错误: {e}", exc_info=True)
                 self.update_progress((index + 1) / total_rows * 100)
             
             if not self.stop_event.is_set():
-                self.log("="*30, add_timestamp=False)
-                self.log(f"处理完成！成功生成 {success_count} 份文档。", level="info")
+                logger.notice("="*30, extra={'simple': True})
+                # --- 修复：在完成日志中显示输出路径 ---
+                logger.info(f"处理完成！共生成 {success_count} 份文档，已保存至: {self.output_dir}")
                 
                 if unmatched_patients:
                     summary_message = f"注意：有 {len(unmatched_patients)} 位符合条件的日间手术患者未能匹配到床号：\n\n" + "\n".join(unmatched_patients)
-                    self.log("="*30, add_timestamp=False)
-                    self.log("以下日间手术患者未能匹配到床号:", level="warning")
+                    logger.warning("="*30, extra={'simple': True})
+                    logger.warning("以下日间手术患者未能匹配到床号:", extra={'simple': True})
                     for patient_info in unmatched_patients:
-                        self.log(f"- {patient_info}", level="warning", add_timestamp=False)
+                        logger.warning(f"- {patient_info}", extra={'simple': True})
                     self.show_message("warning", "匹配提醒", summary_message)
                 
-                final_message = f"成功生成 {success_count} 份随访表。\n" \
-                              f"文件保存在: {self.output_dir}"
+                # --- 修复：在最终弹窗中也显示输出路径 ---
+                final_message = (
+                    f"成功生成 {success_count} 份随访表。\n\n"
+                    f"文件保存在: {self.output_dir}"
+                )
                 self.show_message("info", "完成", final_message)
 
         except Exception as e:
             if not self.stop_event.is_set():
-                error_info = traceback.format_exc()
-                self.log(f"发生严重错误: {e}", level="error")
-                self.log(error_info, level="error", add_timestamp=False)
-                self.show_message("error", "严重错误", f"处理过程中发生严重错误：\n{e}")
+                logger.critical(f"发生严重错误: {e}", exc_info=True)
+                self.show_message("error", "严重错误", f"处理过程中发生严重错误：\n{e}\n\n详情请查看日志文件。")
         finally:
             if db_manager:
                 db_manager.close()

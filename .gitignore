@@ -2,3 +2,6 @@
 **/__pycache__/
 *.py[cod]
 *$py.class
+
+# Python日志文件
+/source/logs

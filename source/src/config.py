@@ -5,6 +5,7 @@
 此文件分为两部分：
 1. UI_CONFIG: 专门存放所有与图形用户界面 (GUI) 相关的配置，如窗口标题、字体、颜色、文本和布局。
 2. CONFIG: 存放所有与核心业务逻辑相关的配置，如文件处理规则、数据列映射等。
+3. LOGGING_CONFIG: 日志系统配置
 
 将两者分开有助于更好地组织和维护代码。
 """
@@ -17,7 +18,7 @@ UI_CONFIG = {
     "app_info": {
         "title": "日间手术随访表生成系统", # 主标题，会显示在窗口顶部
         "version": "8.3",              # 版本号，会显示在窗口标题栏
-        "internal_version": "8.3.18.1",# 内部版本号，用于更精细的跟踪
+        "internal_version": "8.3.19.1",# 内部版本号，用于更精细的跟踪
         "author": "顾江江",             # 作者名，会显示在窗口底部
         "build_date": "2025-08-04"     # 新增：版本发布日期，每次发布新版时修改这里
     },
@@ -62,9 +63,10 @@ UI_CONFIG = {
     "colors": {
         # 定义了日志区域不同级别信息的显示颜色
         "log_tags": {
-            "warning": {"foreground": "#FF8C00"}, # 警告（暗橙色）
-            "error": {"foreground": "red"},       # 错误（红色）
-            "info": {"foreground": "#008B8B"}     # 信息（深青色）
+            "WARNING": {"foreground": "#FF8C00"}, # 警告（暗橙色）
+            "ERROR": {"foreground": "red"},       # 错误（红色）
+            "INFO": {"foreground": "#008B8B"},     # 信息（深青色）
+            "CRITICAL": {"foreground": "red", "font": ("微软雅黑", 9, "bold")}
         },
         # 新增：定义了控件在禁用状态下的背景色
         "disabled_bg": "#f0f0f0" # 标准的灰色
@@ -138,4 +140,14 @@ CONFIG = {
         "{{手术日期}}": "surgery_date", "{{手术名称}}": "surgery_name",
         "{{出院诊断}}": "diagnosis", "{{联系电话}}": "phone", "{{经治医生}}": "doctor",
     }
+}
+
+# =========================================================================
+# 3. 日志系统配置
+# =========================================================================
+LOGGING_CONFIG = {
+    "log_filename": "app_runtime.log", # 日志文件名
+    "log_level": "INFO", # 日志级别: DEBUG, INFO, WARNING, ERROR, CRITICAL
+    "log_max_bytes": 10 * 1024 * 1024, # 单个日志文件最大大小 (10MB)
+    "log_backup_count": 5 # 保留的旧日志文件数量
 }

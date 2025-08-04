@@ -6,11 +6,12 @@ GUI应用控制器模块。
 import tkinter as tk
 from tkinter import ttk
 from tkinter import messagebox
-from datetime import datetime
+import logging # 导入logging模块
 
 from ..config import UI_CONFIG
 from . import ui_builder
 from .handlers import Handlers
+from .logger_handler import TkinterLogHandler
 
 class AppController:
     """应用程序的主控制器类"""
@@ -35,10 +36,10 @@ class AppController:
         
         # --- 初始化设置 ---
         self.scaling_factor = self._get_scaling_factor()
-        self._load_fonts_from_config() # 从配置文件加载字体
+        self._load_fonts_from_config()
         self.setup_window()
         
-        # --- 实例化事件处理器 ---
+        # 实例化事件处理器
         # 将自身实例(self)传递给处理器，以便处理器能访问和修改AppController的状态
         self.handlers = Handlers(self)
         
@@ -46,9 +47,26 @@ class AppController:
         # 将UI构建委托给ui_builder模块，并传入事件处理器
         ui_builder.create_ui(self, self.handlers)
 
+        # 配置UI日志处理器
+        self._setup_ui_logging()
+
         self.listbox_original_bg = self.surgery_listbox.cget("background")
 
         self._display_welcome_message()
+
+    def _setup_ui_logging(self):
+        """配置并添加Tkinter日志处理器到根logger。"""
+        ui_log_handler = TkinterLogHandler(self.log_text)
+        # 从配置中获取颜色标签并设置给处理器
+        color_tags = UI_CONFIG['colors']['log_tags']
+        ui_log_handler.set_tags(color_tags)
+        
+        # 将UI处理器添加到根logger
+        logging.getLogger().addHandler(ui_log_handler)
+        
+        # 为不同级别的日志配置颜色
+        for level, config in color_tags.items():
+            self.log_text.tag_config(level, **config)
 
     def _get_scaling_factor(self):
         """获取屏幕缩放比例"""
@@ -93,11 +111,19 @@ class AppController:
         """在日志区显示欢迎和提示信息。"""
         ui_texts = UI_CONFIG['texts']
         separator = ui_texts.get("log_separator", "---")
-        self.log(ui_texts.get("welcome_message", ""), add_timestamp=False)
-        self.log(separator, add_timestamp=False)
-        self.log(ui_texts.get("welcome_tips", ""), level="info", add_timestamp=False)
-        self.log(ui_texts.get("welcome_warning", ""), level="error", add_timestamp=False)
-        self.log(separator, add_timestamp=False)
+        
+        # 使用 'extra' 参数来控制UI日志的格式
+        # 1. 普通欢迎语: 使用自定义的NOTICE级别，无颜色，无时间戳
+        logging.getLogger().notice(ui_texts.get("welcome_message", ""), extra={'simple': True})
+        logging.getLogger().notice(separator, extra={'simple': True})
+        
+        # 2. 提示信息: 使用INFO级别，有蓝色，无时间戳
+        logging.info(ui_texts.get("welcome_tips", ""), extra={'simple': True})
+        
+        # 3. 警告信息: 使用CRITICAL级别，有红色，无时间戳
+        logging.critical(ui_texts.get("welcome_warning", ""), extra={'simple': True})
+        
+        logging.getLogger().notice(separator, extra={'simple': True})
 
     def _set_ui_busy(self, is_busy):
         """
@@ -110,10 +136,9 @@ class AppController:
         self.root.config(cursor=cursor_type)
         
         for widget in self.interactive_widgets:
-            # --- 修复：当开始生成(is_busy=True)时，不禁用“停止”按钮，以便用户可以点击它 ---
+            # 当开始生成(is_busy=True)时，不禁用“停止”按钮，以便用户可以点击它
             if is_busy and widget == self.start_button:
                 continue
-
             try:
                 if isinstance(widget, tk.Listbox):
                     new_state = tk.DISABLED if is_busy else tk.NORMAL
@@ -130,15 +155,13 @@ class AppController:
 
     # --- 核心回调方法 (由其他模块调用) ---
     def show_message(self, level, title, message):
-        """根据级别显示不同类型的消息框，确保线程安全。"""
-        def _show():
-            if level == "error":
-                messagebox.showerror(title, message)
-            elif level == "warning":
-                messagebox.showwarning(title, message)
-            else: # 默认为 info
-                messagebox.showinfo(title, message)
-        self.root.after(0, _show)
+        """线程安全地显示消息框。"""
+        show_func = {
+            "error": messagebox.showerror,
+            "warning": messagebox.showwarning,
+            "info": messagebox.showinfo
+        }.get(level, messagebox.showinfo)
+        self.root.after(0, lambda: show_func(title, message))
         
     def generation_finished(self):
         """当生成线程结束时，由线程本身调用此方法来更新UI。"""
@@ -149,36 +172,6 @@ class AppController:
             self.generator_instance = None
         
         self.root.after(0, _update_ui)
-
-    def log(self, msg, level=None, add_timestamp=True):
-        """
-        统一的日志记录方法。
-        :param msg: 要记录的消息。
-        :param level: 日志级别 ('info', 'error', 'warning', None)，用于文本着色。
-        :param add_timestamp: 是否在消息前添加时间戳。
-        """
-        if not msg or not str(msg).strip():
-            return
-
-        def append():
-            self.log_text.config(state='normal')
-            
-            log_line = str(msg)
-            if add_timestamp:
-                timestamp = datetime.now().strftime('%H:%M:%S')
-                log_line = f"{timestamp} - {log_line}"
-            
-            full_log_line = f"{log_line}\n"
-
-            tag_to_use = ()
-            if level and level in self.log_text_tags:
-                tag_to_use = (level,)
-
-            self.log_text.insert(tk.END, full_log_line, tag_to_use)
-            self.log_text.config(state='disabled')
-            self.log_text.see(tk.END)
-
-        self.root.after(0, append)
 
     def update_progress(self, value):
         """线程安全地更新进度条。"""
