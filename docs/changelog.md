@@ -252,4 +252,5 @@
 - [优化] 所有相关模块（main, app_controller, logic, handlers, db_manager, excel_reader）均已更新，使用新的日志系统。
 - [优化] config.py中新增日志相关配置项。
 - [修复] 修正了“处理完成”日志和弹窗消息，使其正确显示输出文件夹路径。
+- [修复] 修正了 logic.py 中所有硬编码的分隔符，现在统一从 UI_CONFIG 中读取，确保了日志视觉样式的一致性。
 

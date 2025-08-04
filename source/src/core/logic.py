@@ -12,7 +12,8 @@ from pathlib import Path
 from .modules import excel_reader
 from .modules import doc_writer
 from .modules.db_manager import DatabaseManager
-from ..config import CONFIG
+# --- 修复：导入UI_CONFIG以使用配置好的分隔符 ---
+from ..config import CONFIG, UI_CONFIG
 
 # 获取该模块的logger实例
 logger = logging.getLogger(__name__)
@@ -116,19 +117,21 @@ class DocumentGenerator:
                 self.update_progress((index + 1) / total_rows * 100)
             
             if not self.stop_event.is_set():
-                logger.notice("="*30, extra={'simple': True})
-                # --- 修复：在完成日志中显示输出路径 ---
+                # --- 修复：使用配置文件中定义的分隔符 ---
+                separator = UI_CONFIG['texts'].get("log_separator", "---")
+                logger.notice(separator, extra={'simple': True})
+                
                 logger.info(f"处理完成！共生成 {success_count} 份文档，已保存至: {self.output_dir}")
                 
                 if unmatched_patients:
                     summary_message = f"注意：有 {len(unmatched_patients)} 位符合条件的日间手术患者未能匹配到床号：\n\n" + "\n".join(unmatched_patients)
-                    logger.warning("="*30, extra={'simple': True})
+                    # --- 修复：使用配置文件中定义的分隔符 ---
+                    logger.warning(separator, extra={'simple': True})
                     logger.warning("以下日间手术患者未能匹配到床号:", extra={'simple': True})
                     for patient_info in unmatched_patients:
                         logger.warning(f"- {patient_info}", extra={'simple': True})
                     self.show_message("warning", "匹配提醒", summary_message)
                 
-                # --- 修复：在最终弹窗中也显示输出路径 ---
                 final_message = (
                     f"成功生成 {success_count} 份随访表。\n\n"
                     f"文件保存在: {self.output_dir}"
