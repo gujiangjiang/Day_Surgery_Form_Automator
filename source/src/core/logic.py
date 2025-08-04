@@ -117,21 +117,16 @@ class DocumentGenerator:
                 self.update_progress((index + 1) / total_rows * 100)
             
             if not self.stop_event.is_set():
-                # --- 修复：使用配置文件中定义的分隔符 ---
                 separator = UI_CONFIG['texts'].get("log_separator", "---")
-                logger.notice(separator, extra={'simple': True})
                 
                 logger.info(f"处理完成！共生成 {success_count} 份文档，已保存至: {self.output_dir}")
                 
                 if unmatched_patients:
                     summary_message = f"注意：有 {len(unmatched_patients)} 位符合条件的日间手术患者未能匹配到床号：\n\n" + "\n".join(unmatched_patients)
-                    # --- 修复：使用配置文件中定义的分隔符 ---
                     logger.warning(separator, extra={'simple': True})
                     logger.warning("以下日间手术患者未能匹配到床号:", extra={'simple': True})
                     for patient_info in unmatched_patients:
                         logger.warning(f"- {patient_info}", extra={'simple': True})
-                    # --- 新增：在列表末尾添加分隔符 ---
-                    logger.warning(separator, extra={'simple': True})
                     self.show_message("warning", "匹配提醒", summary_message)
                 
                 final_message = (
@@ -139,6 +134,9 @@ class DocumentGenerator:
                     f"文件保存在: {self.output_dir}"
                 )
                 self.show_message("info", "完成", final_message)
+                
+                # --- 优化：在此处添加最终的分隔符 ---
+                logger.notice(separator, extra={'simple': True})
 
         except Exception as e:
             if not self.stop_event.is_set():
