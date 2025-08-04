@@ -5,16 +5,17 @@ GUI构建模块。
 """
 import tkinter as tk
 from tkinter import ttk, scrolledtext
-# from datetime import datetime  # 不再需要导入datetime
 from .tooltip import Tooltip
-from ..config import UI_CONFIG # 只导入UI配置
+from ..config import UI_CONFIG
+# --- 新增：导入新的UI组件模块 ---
+from . import ui_components
 
-def create_ui(app):
+def create_ui(app, handlers):
     """
     创建并布局所有界面组件。
-    :param app: MainApp的实例，用于绑定命令和访问变量。
+    :param app: AppController的实例，用于访问状态和变量。
+    :param handlers: Handlers的实例，用于绑定UI事件。
     """
-    # 直接从导入的UI_CONFIG中获取配置
     ui_texts = UI_CONFIG['texts']
     app_info = UI_CONFIG['app_info']
 
@@ -59,16 +60,13 @@ def create_ui(app):
     style.configure("About.TButton", padding=0, relief="flat", background=default_bg)
     style.map("About.TButton", background=[('active', '#e5f1fb')])
     
+    # --- 修改：命令绑定到handlers实例 ---
     about_button = ttk.Button(
-        top_title_frame, 
-        text="?", 
-        command=app.show_about_dialog, 
-        style="About.TButton",
-        width=2
+        top_title_frame, text="?", command=handlers.show_about_dialog, style="About.TButton", width=2
     )
     about_button.pack(side=tk.RIGHT, anchor='n', pady=(5,0))
     Tooltip(about_button, "关于本程序")
-    app.interactive_widgets.append(about_button) # 添加到禁用列表
+    app.interactive_widgets.append(about_button)
 
     # --- 标题容器，使其在剩余空间内居中 ---
     title_container = tk.Frame(top_title_frame, bg=default_bg)
@@ -78,8 +76,7 @@ def create_ui(app):
     tk.Label(title_container, text=ui_texts['subtitle'], font=app.font_subtitle, fg="#0066cc", bg=default_bg).pack()
     tk.Label(title_container, text=ui_texts['main_title'], font=app.font_title, bg=default_bg).pack()
 
-
-    # --- 主内容区 (左右分割) ---
+    # --- 主内容区 ---
     main_pane = ttk.PanedWindow(app.root, orient=tk.HORIZONTAL)
     main_pane.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 5))
 
@@ -91,30 +88,28 @@ def create_ui(app):
     
     pane_config = UI_CONFIG['layout']['paned_window']
     s = app.scaling_factor
-    sash_default = int(pane_config['sash_default'] * s)
-    sash_min = int(pane_config['sash_min'] * s)
-    sash_max = int(pane_config['sash_max'] * s)
+    sash_default, sash_min, sash_max = int(pane_config['sash_default'] * s), int(pane_config['sash_min'] * s), int(pane_config['sash_max'] * s)
 
-    def set_initial_sash(event): main_pane.sashpos(0, sash_default); main_pane.unbind("<Configure>")
-    def limit_sash_movement(event):
+    def set_sash(event): main_pane.sashpos(0, sash_default); main_pane.unbind("<Configure>")
+    def limit_sash(event):
         if event.x < sash_min: main_pane.sashpos(0, sash_min); return "break"
         if event.x > sash_max: main_pane.sashpos(0, sash_max); return "break"
-    main_pane.bind("<Configure>", set_initial_sash)
-    main_pane.bind("<B1-Motion>", limit_sash_movement)
-    # ---------------------------------
+    main_pane.bind("<Configure>", set_sash)
+    main_pane.bind("<B1-Motion>", limit_sash)
     
     # --- 左侧面板 ---
     file_frame = ttk.LabelFrame(left_panel, text="步骤1: 选择文件和路径", padding=5)
     file_frame.pack(fill=tk.BOTH, expand=True) 
     
+    # --- 修改：命令绑定到handlers实例 ---
     discharge_menu_items = [
-        ("选择文件", app.select_excel_file),
-        ("查看模板", lambda: app.open_template('discharge')),
+        ("选择文件", handlers.select_excel_file),
+        ("查看模板", lambda: handlers.open_template('discharge')),
         ("---", None),
-        ("清空选择", app.clear_excel_selection)
+        ("清空选择", handlers.clear_excel_selection)
     ]
-    # 捕获返回的控件，并将需要禁用的Menubutton添加到列表中
-    discharge_entry, _, discharge_menubutton = _create_dropdown_selector(file_frame, "出院患者列表:", app.excel_display_var, discharge_menu_items, app.font_normal)
+    # --- 修改：使用新的ui_components模块创建控件 ---
+    discharge_entry, _, discharge_menubutton = ui_components.create_dropdown_selector(file_frame, "出院患者列表:", app.excel_display_var, discharge_menu_items, app.font_normal)
     app.interactive_widgets.extend([discharge_entry, discharge_menubutton])
 
     # --- 手术查询文件 ---
@@ -129,34 +124,33 @@ def create_ui(app):
     
     app.surgery_menubutton = ttk.Menubutton(surgery_buttons_frame, text="选项...", width=8)
     surgery_menu = tk.Menu(app.surgery_menubutton, tearoff=False)
-    surgery_menu.add_command(label="添加文件", command=app.select_surgery_query_files)
-    surgery_menu.add_command(label="查看模板", command=lambda: app.open_template('surgery'))
+    # --- 修改：命令绑定到handlers实例 ---
+    surgery_menu.add_command(label="添加文件", command=handlers.select_surgery_query_files)
+    surgery_menu.add_command(label="查看模板", command=lambda: handlers.open_template('surgery'))
     surgery_menu.add_separator()
-    surgery_menu.add_command(label="清空列表", command=app.clear_surgery_query_files)
+    surgery_menu.add_command(label="清空列表", command=handlers.clear_surgery_query_files)
     app.surgery_menubutton.config(menu=surgery_menu)
     app.surgery_menubutton.pack(fill=tk.X, pady=1)
     app.interactive_widgets.append(app.surgery_menubutton) # 添加按钮到禁用列表
     Tooltip(app.surgery_listbox, "（可选）添加一个或多个手术记录文件，用于自动匹配和补充主列表中缺失的床号信息。")
     Tooltip(app.surgery_menubutton, "管理手术查询文件列表。")
 
-    
     word_menu_items = [
-        ("选择文件", app.select_template_file),
-        ("查看模板", lambda: app.open_template('follow_up')),
-        ("使用内置模板", app.use_builtin_word_template),
+        ("选择文件", handlers.select_template_file),
+        ("查看模板", lambda: handlers.open_template('follow_up')),
+        ("使用内置模板", handlers.use_builtin_word_template),
         ("---", None),
-        ("清空选择", app.clear_template_selection)
+        ("清空选择", handlers.clear_template_selection)
     ]
-    word_entry, _, word_menubutton = _create_dropdown_selector(file_frame, "Word模板:", app.template_display_var, word_menu_items, app.font_normal)
+    word_entry, _, word_menubutton = ui_components.create_dropdown_selector(file_frame, "Word模板:", app.template_display_var, word_menu_items, app.font_normal)
     app.interactive_widgets.extend([word_entry, word_menubutton])
 
-    
     output_dir_items = [
-        ("选择文件夹", app.select_output_dir),
+        ("选择文件夹", handlers.select_output_dir),
         ("---", None),
-        ("清空选择", app.clear_output_dir_selection)
+        ("清空选择", handlers.clear_output_dir_selection)
     ]
-    output_entry, _, output_menubutton = _create_dropdown_selector(file_frame, "输出文件夹:", app.output_dir_display_var, output_dir_items, app.font_normal)
+    output_entry, _, output_menubutton = ui_components.create_dropdown_selector(file_frame, "输出文件夹:", app.output_dir_display_var, output_dir_items, app.font_normal)
     app.interactive_widgets.extend([output_entry, output_menubutton])
 
     
@@ -166,7 +160,8 @@ def create_ui(app):
     
     style.configure("Accent.TButton", foreground="white", background="#0078D7", font=app.font_button)
     style.configure("Stop.TButton", foreground="white", background="#E81123", font=app.font_button)
-    app.start_button = ttk.Button(control_frame, text="开始生成", command=app.toggle_generation, style="Accent.TButton")
+    # --- 修改：命令绑定到handlers实例 ---
+    app.start_button = ttk.Button(control_frame, text="开始生成", command=handlers.toggle_generation, style="Accent.TButton")
     app.start_button.pack(pady=5, ipady=5, ipadx=20)
     app.interactive_widgets.append(app.start_button)
     Tooltip(app.start_button, "点击开始处理数据并生成Word文档。\n处理过程中，此按钮会变为“停止生成”。")
@@ -187,53 +182,12 @@ def create_ui(app):
 
     # --- 新增：为日志区域添加右键菜单 ---
     log_context_menu = tk.Menu(app.root, tearoff=False)
-    log_context_menu.add_command(label="清空日志", command=app.clear_log)
+    # --- 修改：命令绑定到handlers实例 ---
+    log_context_menu.add_command(label="清空日志", command=handlers.clear_log)
     log_context_menu.add_separator()
-    log_context_menu.add_command(label="导出日志...", command=app.export_log)
+    log_context_menu.add_command(label="导出日志...", command=handlers.export_log)
 
     def show_log_context_menu(event):
         log_context_menu.post(event.x_root, event.y_root)
 
     app.log_text.bind("<Button-3>", show_log_context_menu)
-    # ------------------------------------
-
-def _create_dropdown_selector(parent, label_text, string_var, menu_items, font):
-    """
-    创建带有下拉菜单按钮的文件/目录选择器行。
-    使用grid布局管理器来确保输入框可以正确缩放。
-    返回创建的 (Entry, Label, Menubutton) 控件元组，以便可以为其绑定Tooltip。
-    """
-    row_frame = ttk.Frame(parent)
-    row_frame.pack(fill=tk.X, expand=True, pady=1)
-
-    # --- 布局修复 ---
-    # 配置grid的列权重，让第1列（输入框）可以伸缩
-    row_frame.columnconfigure(1, weight=1)
-
-    label_widget = ttk.Label(row_frame, text=label_text, width=12, font=font)
-    label_widget.grid(row=0, column=0, sticky='w', padx=(0, 5))
-    
-    entry = ttk.Entry(row_frame, textvariable=string_var, state='readonly', font=font)
-    # 使用 sticky='ew' 让输入框水平填充其单元格
-    entry.grid(row=0, column=1, sticky='ew')
-    
-    menubutton = ttk.Menubutton(row_frame, text="选项...", width=8)
-    menubutton.grid(row=0, column=2, sticky='e', padx=(5, 0))
-    # -----------------
-    
-    menu = tk.Menu(menubutton, tearoff=False)
-    # --- 错误修复 ---
-    # 在循环中使用不同的变量名(item_text)，以避免覆盖外部的 'label' 控件变量
-    for item_text, command in menu_items:
-        if item_text == "---":
-            menu.add_separator()
-        else:
-            menu.add_command(label=item_text, command=command)
-    menubutton.config(menu=menu)
-    
-    Tooltip(entry, f"已选择的{label_text.replace(':', '')}路径。")
-    Tooltip(label_widget, f"点击右侧“选项...”按钮来选择{label_text.replace(':', '')}。")
-    Tooltip(menubutton, "点击展开操作菜单")
-    
-    # 返回所有创建的控件，以便外部可以为它们分别添加提示
-    return entry, label_widget, menubutton

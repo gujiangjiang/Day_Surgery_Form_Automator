@@ -57,29 +57,36 @@
 │       ├── icons/            # 可选图标
 │       └── screenshots/      # 软件截图
 ├── source/                   # 源代码目录
-│   ├── main.py               # 🚀 主程序入口
-│   ├── requirements.txt      # 📦 依赖列表
-│   ├── assets/               # 🎨 存放资源文件
-│   │   ├── app.ico           # 程序图标
-│   │   └── splash.png        # 启动画面
-│   ├── templates/            # 📂 内置模板文件夹
-│   └── src/                  # 模块目录
-│       ├── __init__.py       # 将src声明为可导入的包
-│       ├── config.py         # 全局配置
-│       ├── temp_manager.py   # 临时文件管理器
-│       ├── utils.py          # 工具函数
-│       ├── core/             # 核心逻辑模块
-│       │   ├── __init__.py
-│       │   ├── logic.py      # 核心业务编排
-│       │   └── modules/      # 核心功能子模块
-│       │       ├── __init__.py
-│       │       ├── db_manager.py     # 数据库管理
-│       │       ├── doc_writer.py     # 文档生成
-│       │       └── excel_reader.py   # Excel读取
-│       └── gui/              # GUI界面模块
-│           ├── __init__.py
-│           ├── main_app.py   # GUI应用主逻辑
-│           └── ui_builder.py # GUI界面布局
+├── main.py               # 🚀 主程序入口
+├── requirements.txt      # 📦 依赖列表
+├── assets/               # 🎨 存放资源文件
+│   ├── app.ico           # 程序图标
+│   └── splash.png        # 启动画面
+├── templates/            # 📂 内置模板文件夹
+│   ├── 出院患者列表模板.xls
+│   ├── 手术查询模板.xlsx
+│   └── 日间手术随访登记表模板.docx
+└── src/                  # 模块目录
+    ├── __init__.py       # 将src声明为可导入的包
+    ├── config.py         # 全局配置
+    ├── temp_manager.py   # 临时文件管理器
+    ├── template_handler.py   # 内置模板管理器
+    ├── utils.py          # 工具函数
+    ├── core/             # 核心逻辑模块
+    │   ├── __init__.py
+    │   ├── logic.py      # 核心业务编排
+    │   └── modules/      # 核心功能子模块
+    │       ├── __init__.py
+    │       ├── db_manager.py     # 数据库管理
+    │       ├── doc_writer.py     # 文档生成
+    │       └── excel_reader.py   # Excel读取
+    └── gui/              # GUI界面模块
+        ├── __init__.py
+        ├── app_controller.py   # GUI应用控制器 (原main_app.py)
+        ├── handlers.py         # GUI事件处理器
+        ├── tooltip.py          # 悬停提示工具
+        ├── ui_builder.py       # GUI界面布局
+        └── ui_components.py    # GUI可复用组件
 ```
 
 ## 🚀 安装与运行

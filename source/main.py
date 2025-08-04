@@ -32,7 +32,8 @@ except ImportError:
 # 为了让这个导入生效，需要将src目录的父目录（即项目根目录）加入sys.path
 # get_base_path() 函数会返回这个根目录
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from src.gui.main_app import MainApp
+# --- 修改：更新导入的类名 ---
+from src.gui.app_controller import AppController
 
 
 def get_base_path():
@@ -137,8 +138,9 @@ def main():
         except tk.TclError:
             print(f"警告：无法加载图标文件。")
 
+    # --- 修改：实例化新的类名 ---
     # 将根目录路径(Path对象)传递给App实例，以便其他模块也能正确找到文件
-    app_instance = MainApp(root, base_path=BASE_PATH)
+    app_instance = AppController(root, base_path=BASE_PATH)
 
     def show_main_window():
         if splash:

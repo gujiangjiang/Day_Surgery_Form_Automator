@@ -239,4 +239,8 @@
 - [优化] 重构 main_app.py 中的 toggle_generation 方法，将输入验证和模板路径获取逻辑提取到独立的辅助函数中，使主流程更清晰。
 - [优化] 将版本日期从动态获取改为在 config.py 中配置，确保了版本信息的固定性和准确性。
 - [新增] 在主界面右上角新增“关于”图标，点击可查看程序、版本及作者信息。
+- [重构] 将 main_app.py 重命名为 app_controller.py，使其职责更明确。
+- [重构] 新建 handlers.py 模块，将所有UI事件处理逻辑从主控制器中分离。
+- [重构] 新建 ui_components.py 模块，用于存放可复用的自定义UI组件。
+- [优化] 调整了 main.py, app_controller.py, 和 ui_builder.py 的代码以适应新的模块化结构。
 
