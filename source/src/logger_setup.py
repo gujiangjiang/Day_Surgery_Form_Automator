@@ -28,10 +28,6 @@ def setup_logging(base_path):
     配置全局日志系统。
     将日志同时输出到控制台、文件和UI界面（通过自定义处理器）。
     """
-    log_dir = base_path / "logs"
-    log_dir.mkdir(exist_ok=True)
-    log_file = log_dir / LOGGING_CONFIG["log_filename"]
-
     log_level = getattr(logging, LOGGING_CONFIG["log_level"].upper(), logging.INFO)
 
     formatter = logging.Formatter(
@@ -46,17 +42,28 @@ def setup_logging(base_path):
     if root_logger.hasHandlers():
         root_logger.handlers.clear()
 
+    # --- 1. 配置控制台处理器 (用于开发调试) ---
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setFormatter(formatter)
     root_logger.addHandler(console_handler)
 
-    file_handler = RotatingFileHandler(
-        log_file,
-        maxBytes=LOGGING_CONFIG["log_max_bytes"],
-        backupCount=LOGGING_CONFIG["log_backup_count"],
-        encoding='utf-8'
-    )
-    file_handler.setFormatter(formatter)
-    root_logger.addHandler(file_handler)
+    # --- 2. 配置文件处理器 (根据配置决定是否启用) ---
+    if LOGGING_CONFIG.get("enable_file_logging", True):
+        log_dir = base_path / "logs"
+        log_dir.mkdir(exist_ok=True)
+        log_file = log_dir / LOGGING_CONFIG["log_filename"]
+
+        file_handler = RotatingFileHandler(
+            log_file,
+            maxBytes=LOGGING_CONFIG["log_max_bytes"],
+            backupCount=LOGGING_CONFIG["log_backup_count"],
+            encoding='utf-8'
+        )
+        file_handler.setFormatter(formatter)
+        root_logger.addHandler(file_handler)
+        logging.info("文件日志已启用。")
+    else:
+        logging.info("文件日志已禁用。")
 
     logging.info("日志系统初始化完成。")
+

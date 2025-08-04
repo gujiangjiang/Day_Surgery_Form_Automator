@@ -18,7 +18,7 @@ UI_CONFIG = {
     "app_info": {
         "title": "日间手术随访表生成系统", # 主标题，会显示在窗口顶部
         "version": "8.3",              # 版本号，会显示在窗口标题栏
-        "internal_version": "8.3.21.1",# 内部版本号，用于更精细的跟踪
+        "internal_version": "8.3.22.1",# 内部版本号，用于更精细的跟踪
         "author": "顾江江",             # 作者名，会显示在窗口底部
         "build_date": "2025-08-04"     # 新增：版本发布日期，每次发布新版时修改这里
     },
@@ -146,6 +146,7 @@ CONFIG = {
 # 3. 日志系统配置
 # =========================================================================
 LOGGING_CONFIG = {
+    "enable_file_logging": False, # True 启用本地日志文件生成，False 禁用本地日志文件生成
     "log_filename": "app_runtime.log", # 日志文件名
     "log_level": "INFO", # 日志级别: DEBUG, INFO, WARNING, ERROR, CRITICAL
     "log_max_bytes": 10 * 1024 * 1024, # 单个日志文件最大大小 (10MB)
