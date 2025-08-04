@@ -12,7 +12,6 @@ from pathlib import Path
 from .modules import excel_reader
 from .modules import doc_writer
 from .modules.db_manager import DatabaseManager
-# --- 修复：导入UI_CONFIG以使用配置好的分隔符 ---
 from ..config import CONFIG, UI_CONFIG
 
 # 获取该模块的logger实例
@@ -42,6 +41,8 @@ class DocumentGenerator:
     def run(self):
         """主执行函数，负责编排整个流程"""
         db_manager = None
+        # --- 优化：将分隔符定义在try块的开头，以便except块也能使用 ---
+        separator = UI_CONFIG['texts'].get("log_separator", "---")
         try:
             logger.notice("后台处理任务已启动，正在准备环境...")
             
@@ -72,6 +73,8 @@ class DocumentGenerator:
             if not patient_records:
                 required_cols_str = ', '.join([CONFIG['column_mapping'][k] for k in CONFIG['required_patient_cols']])
                 self.show_message("error", "读取失败", f"在 '出院患者列表' 文件中无法自动定位标题行或未找到任何有效数据。\n请确保文件包含以下列: {required_cols_str}")
+                # --- 修复：在提前退出前添加分隔符 ---
+                logger.notice(separator, extra={'simple': True})
                 return
 
             if col_map and 'bed_number' not in col_map:
@@ -82,6 +85,8 @@ class DocumentGenerator:
             patient_count = db_manager.load_patient_data(patient_records)
             if patient_count <= 0:
                 logger.error("未从主文件中加载任何有效的患者记录。")
+                # --- 修复：在提前退出前添加分隔符 ---
+                logger.notice(separator, extra={'simple': True})
                 return
             logger.info(f"成功从主文件加载了 {patient_count} 条患者记录。")
 
@@ -95,6 +100,8 @@ class DocumentGenerator:
                 msg = f"未找到住院天数 <= {CONFIG['day_surgery_max_days']} 天的记录。"
                 logger.error(msg)
                 self.show_message("error", "无数据", msg)
+                # --- 修复：在提前退出前添加分隔符 ---
+                logger.notice(separator, extra={'simple': True})
                 return
 
             total_rows = len(final_patient_rows)
@@ -117,8 +124,6 @@ class DocumentGenerator:
                 self.update_progress((index + 1) / total_rows * 100)
             
             if not self.stop_event.is_set():
-                separator = UI_CONFIG['texts'].get("log_separator", "---")
-                
                 logger.info(f"处理完成！共生成 {success_count} 份文档，已保存至: {self.output_dir}")
                 
                 if unmatched_patients:
@@ -135,11 +140,12 @@ class DocumentGenerator:
                 )
                 self.show_message("info", "完成", final_message)
                 
-                # --- 优化：在此处添加最终的分隔符 ---
                 logger.notice(separator, extra={'simple': True})
 
         except Exception as e:
             if not self.stop_event.is_set():
+                # --- 优化：在记录严重错误前，也添加一个分隔符 ---
+                logger.notice(separator, extra={'simple': True})
                 logger.critical(f"发生严重错误: {e}", exc_info=True)
                 self.show_message("error", "严重错误", f"处理过程中发生严重错误：\n{e}\n\n详情请查看日志文件。")
         finally:
