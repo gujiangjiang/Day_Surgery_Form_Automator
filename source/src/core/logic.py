@@ -130,6 +130,8 @@ class DocumentGenerator:
                     logger.warning("以下日间手术患者未能匹配到床号:", extra={'simple': True})
                     for patient_info in unmatched_patients:
                         logger.warning(f"- {patient_info}", extra={'simple': True})
+                    # --- 新增：在列表末尾添加分隔符 ---
+                    logger.warning(separator, extra={'simple': True})
                     self.show_message("warning", "匹配提醒", summary_message)
                 
                 final_message = (
