@@ -243,4 +243,5 @@
 - [重构] 新建 handlers.py 模块，将所有UI事件处理逻辑从主控制器中分离。
 - [重构] 新建 ui_components.py 模块，用于存放可复用的自定义UI组件。
 - [优化] 调整了 main.py, app_controller.py, 和 ui_builder.py 的代码以适应新的模块化结构。
+- [优化] 为文件解析操作增加即时日志反馈。
 

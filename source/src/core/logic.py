@@ -62,6 +62,7 @@ class DocumentGenerator:
 
     def _load_patient_data(self, db_manager):
         """加载主患者列表文件数据到数据库"""
+        self.log("开始处理主患者列表文件...") # 为主文件处理也增加明确的日志
         records, col_map = excel_reader.process_file(
             file_path=self.excel_path,
             required_keys=CONFIG['required_patient_cols'],
@@ -93,6 +94,9 @@ class DocumentGenerator:
         """主执行函数，负责编排整个流程"""
         db_manager = None
         try:
+            # --- 优化：在线程开始时立即提供反馈 ---
+            self.log("后台处理任务已启动，正在准备环境...", level="info")
+            
             # 使用Path对象创建目录
             self.output_dir.mkdir(parents=True, exist_ok=True)
             db_manager = DatabaseManager(self.log)
