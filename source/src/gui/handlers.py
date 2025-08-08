@@ -63,13 +63,17 @@ class Handlers:
                 messagebox.showerror("错误", f"模板文件未找到！\n请确保 '{template_name}' 文件存在于 'templates' 文件夹中。")
                 return
 
+            # --- 已修改 ---
+            # 调用更健壮的 create_temp_read_only_copy 函数
             temp_path = temp_manager.create_temp_read_only_copy(str(original_path))
 
             if temp_path:
                 self._open_file_cross_platform(temp_path)
-                logger.info(f"已打开模板: {temp_path.name}")
+                logger.info(f"已打开模板: {template_name}")
             else:
-                messagebox.showerror("错误", "创建临时模板文件失败。")
+                # 如果 temp_path 为 None，说明创建或清理失败
+                logger.error(f"创建或清理临时文件失败: {template_name}")
+                messagebox.showerror("操作失败", f"无法创建临时模板文件 '{template_name}'。\n\n这可能是因为旧的临时文件仍被其他程序（如Excel）占用。\n请关闭相关程序后重试。")
 
         except Exception as e:
             logger.error(f"无法打开模板文件", exc_info=True)
