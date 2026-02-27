@@ -17,10 +17,11 @@ def _remove_readonly(func, path, exc_info):
     shutil.rmtree 的错误处理器。
     它会在删除失败时被调用，尝试移除文件的只读属性并重试。
     """
-    if exc_info and exc_info[1] and getattr(exc_info[1], 'winerror', 0) == 5:
-        Path(path).chmod(stat.S_IWRITE)
+    # 【优化跨平台】：移除了仅限Windows的winerror判断，对所有平台的删除异常尝试赋予读写权限以进行安全重试
+    try:
+        Path(path).chmod(stat.S_IWRITE | stat.S_IREAD)
         func(path)
-    else:
+    except Exception:
         raise
 
 def _cleanup_temp_dir():
@@ -68,7 +69,8 @@ def create_temp_read_only_copy(original_path_str):
     if temp_path.exists():
         try:
             # 尝试移除只读属性并删除它
-            temp_path.chmod(stat.S_IWRITE)  # 移除只读
+            # 【优化跨平台】：使用按位或操作符，确保在保留现有权限的基础上增加写权限
+            temp_path.chmod(temp_path.stat().st_mode | stat.S_IWRITE)  # 恢复写权限
             temp_path.unlink()              # 删除文件
             print(f"成功清理了遗留的临时文件: {temp_path}")
         except Exception as e:
@@ -82,7 +84,9 @@ def create_temp_read_only_copy(original_path_str):
         # 现在路径应该是干净的，可以安全地复制
         shutil.copy2(original_path, temp_path)
         # 将新文件设置为只读
-        temp_path.chmod(stat.S_IREAD)
+        # 【优化跨平台】：使用按位与非操作符仅移除写权限，保留原有的读和执行权限，防止在 Linux/macOS 下权限过于严格导致无法读取
+        current_mode = temp_path.stat().st_mode
+        temp_path.chmod(current_mode & ~stat.S_IWRITE)
         return temp_path
     except Exception as e:
         # 用户的错误日志在这里被触发
