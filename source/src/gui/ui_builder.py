@@ -22,7 +22,7 @@ def create_ui(app, handlers):
 
     style = ttk.Style(app.root)
     
-    # 【修复跨平台 Bug】：macOS 下强制使用 clam 主题会破坏原生 aqua 引擎，导致透明失效并出现大面积黑屏
+    # 【修复跨平台 Bug】：macOS 下强制使用 clam主题会破坏原生 aqua 引擎，导致透明失效并出现大面积黑屏
     # 因此，仅在非 macOS 系统（如 Windows/Linux）上才使用 clam 主题。
     if sys.platform != "darwin" and "clam" in style.theme_names():
         style.theme_use("clam")
@@ -131,7 +131,8 @@ def create_ui(app, handlers):
     # --- 手术查询文件 ---
     surgery_frame = ttk.LabelFrame(file_frame, text="手术查询文件 (可选, 用于补充床号)", padding=5)
     surgery_frame.pack(fill=tk.X, expand=True, pady=3)
-    app.surgery_listbox = tk.Listbox(surgery_frame, height=5, font=app.font_normal)
+    # 【修复跨平台 Bug】：设置 highlightthickness=0 防止在 macOS 深色模式下点击时出现丑陋的白色焦点边框
+    app.surgery_listbox = tk.Listbox(surgery_frame, height=5, font=app.font_normal, highlightthickness=0)
     app.surgery_listbox.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0,5))
     app.interactive_widgets.append(app.surgery_listbox) # 添加列表框到禁用列表
     
@@ -190,7 +191,8 @@ def create_ui(app, handlers):
     app.progress_bar = ttk.Progressbar(progress_frame, orient='horizontal', mode='determinate')
     app.progress_bar.pack(fill=tk.X, pady=(0, 5))
     
-    app.log_text = scrolledtext.ScrolledText(progress_frame, height=5, state='disabled', font=app.font_normal, wrap=tk.WORD)
+    # 【修复跨平台 Bug】：设置 highlightthickness=0 防止在 macOS 深色模式下点击日志框时出现丑陋的白色焦点边框
+    app.log_text = scrolledtext.ScrolledText(progress_frame, height=5, state='disabled', font=app.font_normal, wrap=tk.WORD, highlightthickness=0)
     app.log_text.pack(fill=tk.BOTH, expand=True)
     # 从app实例上获取已经配置好的颜色标签
     for tag, config in app.log_text_tags.items():
