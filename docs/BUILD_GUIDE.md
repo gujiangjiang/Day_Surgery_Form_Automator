@@ -54,7 +54,7 @@ pip install -r requirements.txt
 一切准备就绪后，直接运行主脚本即可启动程序：
 
 ```bash
-python day_durgery_form_automator.py
+python main.py
 ```
 
 ---
@@ -91,7 +91,7 @@ Nuitka 会将 Python 代码编译成 C++ 代码，然后再编译成可执行文
 
 **1. 安装 Nuitka**
 ```bash
-pip install nuitka
+pip install nuitka zstandard
 ```
 *Nuitka* 还需要一个 C++ 编译器。在 Windows 上，它会自动提示并帮助您下载安装 *MinGW64*，按照提示操作即可。
 
@@ -123,11 +123,11 @@ python -m nuitka `
   --mingw64 `
   --output-dir=build `
   --output-filename="day_durgery_form_automator.exe" `
-  --file-version=8.4.0.1 `
-  --product-version=8.4 `
+  --file-version=8.8.0.1 `
+  --product-version=8.8 `
   --company-name="Danyang People's Hospital" `
   --product-name="Day Surgery Form Automator" `
-  --copyright="© 2025 gujiangjiang" `
+  --copyright="© 2026 gujiangjiang" `
   main.py
 ```
 
@@ -145,11 +145,11 @@ python -m nuitka ^
   --mingw64 ^
   --output-dir=build ^
   --output-filename="day_durgery_form_automator.exe" ^
-  --file-version=8.4.0.1 `
-  --product-version=8.4 `
+  --file-version=8.8.0.1 `
+  --product-version=8.8 `
   --company-name="Danyang People's Hospital" `
   --product-name="Day Surgery Form Automator" `
-  --copyright="© 2025 gujiangjiang" `
+  --copyright="© 2026 gujiangjiang" `
   main.py
 ```
 
