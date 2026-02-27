@@ -3,6 +3,7 @@
 模块功能：提供一个可重用的Tooltip类，用于为Tkinter控件添加悬停提示。
 """
 import tkinter as tk
+import sys # 引入 sys 用于操作系统判定
 
 class Tooltip:
     """
@@ -55,11 +56,38 @@ class Tooltip:
         tw.wm_overrideredirect(True) # 无边框窗口
         tw.wm_geometry(f"+{int(x)}+{int(y)}") # 确保坐标是整数
 
+        # 【跨平台 UI 优化】：根据不同操作系统动态调整提示框的颜色、边框和字体风格
+        if sys.platform == "darwin":
+            # macOS 现代风格：深灰底色、纯白文字、无边框、苹方字体
+            bg_color = "#323232"
+            fg_color = "#ffffff"
+            relief_style = "flat"
+            bd_width = 0
+            font_style = ("PingFang SC", 12, "normal")
+        elif sys.platform == "win32":
+            # Windows 经典风格：浅黄底色、黑色文字、实线边框、微软雅黑
+            bg_color = "#ffffe0"
+            fg_color = "#000000"
+            relief_style = "solid"
+            bd_width = 1
+            font_style = ("微软雅黑", 9, "normal")
+        else:
+            # Linux/其他平台的安全回退风格
+            bg_color = "#f0f0f0"
+            fg_color = "#000000"
+            relief_style = "solid"
+            bd_width = 1
+            font_style = ("sans-serif", 10, "normal")
+
+        # 使用动态生成的样式变量替换原有的硬编码
         label = tk.Label(tw, text=self.text, justify='left',
-                         background="#ffffe0", relief='solid', borderwidth=1,
+                         background=bg_color, foreground=fg_color, 
+                         relief=relief_style, borderwidth=bd_width,
                          wraplength=self.wraplength, # 设置自动换行
-                         font=("微软雅黑", 9, "normal"))
-        label.pack(ipadx=5, ipady=3)
+                         font=font_style)
+                         
+        # 稍微增加 ipadx 和 ipady 让文本看起来不那么拥挤，提升视觉效果
+        label.pack(ipadx=8, ipady=4)
 
     def hidetip(self):
         """隐藏提示窗口。"""
