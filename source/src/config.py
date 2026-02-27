@@ -10,6 +10,36 @@
 将两者分开有助于更好地组织和维护代码。
 """
 
+import sys
+
+# 【修复跨平台 Bug】：针对不同操作系统动态选择最合适的默认中文字体和字号基准
+# macOS 的 Tkinter 渲染字体的点阵像素规则与 Windows 不同，直接使用相同的数字会导致忽大忽小，因此需要分开定义。
+if sys.platform == "win32":
+    _default_font = "微软雅黑"
+    _size_normal = 9
+    _size_bold = 10
+    _size_title = 20
+    _size_subtitle = 16
+    _size_button = 12
+    _size_disclaimer = 10
+elif sys.platform == "darwin":
+    _default_font = "PingFang SC" # macOS 默认的中文字体（苹方）
+    _size_normal = 13
+    _size_bold = 14
+    _size_title = 24
+    _size_subtitle = 18
+    _size_button = 14
+    _size_disclaimer = 12
+else:
+    _default_font = "sans-serif" # Linux 等其他操作系统的安全回退字体
+    _size_normal = 10
+    _size_bold = 11
+    _size_title = 20
+    _size_subtitle = 16
+    _size_button = 12
+    _size_disclaimer = 10
+
+
 # =========================================================================
 # 1. UI界面配置 (所有界面相关的文字、字体、颜色、布局都在这里修改)
 # =========================================================================
@@ -17,8 +47,8 @@ UI_CONFIG = {
     # --- 应用程序基本信息 ---
     "app_info": {
         "title": "日间手术随访表生成系统", # 主标题，会显示在窗口顶部
-        "version": "8.5",              # 版本号，会显示在窗口标题栏
-        "internal_version": "8.5.0.1",# 内部版本号，用于更精细的跟踪
+        "version": "8.6",              # 版本号，会显示在窗口标题栏
+        "internal_version": "8.6.0.1",# 内部版本号，用于更精细的跟踪
         "author": "顾江江",             # 作者名，会显示在窗口底部
         "build_date": "2026-02-28"     # 新增：版本发布日期，每次发布新版时修改这里
     },
@@ -27,12 +57,12 @@ UI_CONFIG = {
     # 定义了程序中使用的所有字体样式
     # 格式: (字体名称, 字号, *样式)，样式可以是 "bold", "italic", "underline" 等
     "fonts": {
-        "normal": ("微软雅黑", 9),
-        "bold": ("微软雅黑", 10, "bold"),
-        "title": ("微软雅黑", 20, "bold"),
-        "subtitle": ("微软雅黑", 16, "bold"),
-        "button": ("微软雅黑", 12, "bold"),
-        "disclaimer": ("微软雅黑", 10)
+        "normal": (_default_font, _size_normal),
+        "bold": (_default_font, _size_bold, "bold"),
+        "title": (_default_font, _size_title, "bold"),
+        "subtitle": (_default_font, _size_subtitle, "bold"),
+        "button": (_default_font, _size_button, "bold"),
+        "disclaimer": (_default_font, _size_disclaimer)
     },
 
     # --- 界面文本配置 ---
@@ -66,7 +96,7 @@ UI_CONFIG = {
             "WARNING": {"foreground": "#FF8C00"}, # 警告（暗橙色）
             "ERROR": {"foreground": "red"},       # 错误（红色）
             "INFO": {"foreground": "#008B8B"},     # 信息（深青色）
-            "CRITICAL": {"foreground": "red", "font": ("微软雅黑", 9, "bold")}
+            "CRITICAL": {"foreground": "red", "font": (_default_font, _size_normal, "bold")}
         },
         # 新增：定义了控件在禁用状态下的背景色
         "disabled_bg": "#f0f0f0" # 标准的灰色
