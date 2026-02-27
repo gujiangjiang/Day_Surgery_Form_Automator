@@ -204,6 +204,18 @@ def create_ui(app, handlers):
     log_context_menu.add_command(label="导出日志...", command=handlers.export_log)
 
     def show_log_context_menu(event):
-        log_context_menu.post(event.x_root, event.y_root)
+        # 【修复跨平台 Bug】：使用 tk_popup 代替 post，防止菜单在 macOS/Linux 上弹出后无法自动收回
+        try:
+            log_context_menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            log_context_menu.grab_release()
 
-    app.log_text.bind("<Button-3>", show_log_context_menu)
+    # 【修复跨平台 Bug】：全面兼容各种系统下不同的右键单击事件绑定
+    if sys.platform == "darwin":
+        # macOS 上的右键可能是 Button-2, Button-3, 或者按住 Control 点击左键 (Control-Button-1)
+        app.log_text.bind("<Button-2>", show_log_context_menu)
+        app.log_text.bind("<Button-3>", show_log_context_menu)
+        app.log_text.bind("<Control-Button-1>", show_log_context_menu)
+    else:
+        # Windows / Linux 标准右键
+        app.log_text.bind("<Button-3>", show_log_context_menu)
