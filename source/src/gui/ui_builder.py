@@ -5,6 +5,7 @@ GUI构建模块。
 """
 import tkinter as tk
 from tkinter import ttk, scrolledtext
+import sys # 引入 sys 用于操作系统判定
 from .tooltip import Tooltip
 from ..config import UI_CONFIG
 # --- 新增：导入新的UI组件模块 ---
@@ -20,16 +21,31 @@ def create_ui(app, handlers):
     app_info = UI_CONFIG['app_info']
 
     style = ttk.Style(app.root)
-    if "clam" in style.theme_names():
+    
+    # 【修复跨平台 Bug】：macOS 下强制使用 clam 主题会破坏原生 aqua 引擎，导致透明失效并出现大面积黑屏
+    # 因此，仅在非 macOS 系统（如 Windows/Linux）上才使用 clam 主题。
+    if sys.platform != "darwin" and "clam" in style.theme_names():
         style.theme_use("clam")
 
     # --- 新增：为ttk.Entry定义禁用时的背景色 ---
-    disabled_bg = UI_CONFIG['colors']['disabled_bg']
-    # 'map' 允许我们根据控件的状态来定义其外观
-    # fieldbackground 是输入框内部的背景
-    style.map('TEntry', fieldbackground=[('disabled', disabled_bg)])
+    # macOS 的原生 aqua 主题能够自动处理禁用状态，在此处强制覆盖会导致输入框背景变黑。
+    if sys.platform != "darwin":
+        disabled_bg = UI_CONFIG['colors']['disabled_bg']
+        # 'map' 允许我们根据控件的状态来定义其外观
+        # fieldbackground 是输入框内部的背景
+        style.map('TEntry', fieldbackground=[('disabled', disabled_bg)])
     
-    default_bg = style.lookup('TFrame', 'background')
+    # 【修复跨平台 Bug】：更安全的背景色提取策略，防止 macOS 找不到 ttk 默认背景时反馈黑色
+    if sys.platform == "darwin":
+        # 在 Mac 下直接读取系统根窗口的背景色（通常是 systemWindowBackgroundColor）
+        default_bg = app.root.cget('bg')
+    else:
+        default_bg = style.lookup('TFrame', 'background')
+        
+    # 如果系统出现异常无法拿到背景色，或者返回的是透明占位符，统一使用安全的系统灰底色
+    if not default_bg or default_bg == "systemTransparent":
+        default_bg = "#ECECEC"
+        
     app.root.configure(bg=default_bg)
 
     log_colors = UI_CONFIG['colors']['log_tags']
@@ -150,8 +166,8 @@ def create_ui(app, handlers):
         ("---", None),
         ("清空选择", handlers.clear_output_dir_selection)
     ]
-    output_entry, _, output_menubutton = ui_components.create_dropdown_selector(file_frame, "输出文件夹:", app.output_dir_display_var, output_dir_items, app.font_normal)
-    app.interactive_widgets.extend([output_entry, output_menubutton])
+    output_dir_entry, _, output_dir_menubutton = ui_components.create_dropdown_selector(file_frame, "输出文件夹:", app.output_dir_display_var, output_dir_items, app.font_normal)
+    app.interactive_widgets.extend([output_dir_entry, output_dir_menubutton])
 
     
     # --- 控制和进度条 ---
