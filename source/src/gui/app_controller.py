@@ -3,6 +3,7 @@
 GUI应用控制器模块。
 此类负责窗口管理、状态维护，并协调UI和业务逻辑。
 """
+import sys # 导入sys模块，用于跨平台判断
 import tkinter as tk
 from tkinter import ttk
 from tkinter import messagebox
@@ -142,8 +143,13 @@ class AppController:
             try:
                 if isinstance(widget, tk.Listbox):
                     new_state = tk.DISABLED if is_busy else tk.NORMAL
-                    new_bg = disabled_bg if is_busy else self.listbox_original_bg
-                    widget.config(state=new_state, bg=new_bg)
+                    # 【修复深色模式白屏Bug】：在 macOS 下，为了兼容深色模式，不要硬编码将背景色设为亮灰色。
+                    # 仅修改状态让系统自动置灰文字，以保持深色背景不突变。
+                    if sys.platform == "darwin":
+                        widget.config(state=new_state)
+                    else:
+                        new_bg = disabled_bg if is_busy else self.listbox_original_bg
+                        widget.config(state=new_state, bg=new_bg)
                 elif isinstance(widget, ttk.Entry):
                     new_state = tk.DISABLED if is_busy else 'readonly'
                     widget.config(state=new_state)
