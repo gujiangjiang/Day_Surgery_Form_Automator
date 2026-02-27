@@ -33,15 +33,38 @@ class Handlers:
         try:
             path_str = str(file_path)
             if sys.platform == "win32":
+                # Windows环境：os.startfile 在找不到关联程序时会抛出 OSError
                 os.startfile(path_str)
             elif sys.platform == "darwin":
-                subprocess.run(["open", path_str], check=True)
+                # macOS环境：抑制终端错误输出，失败时会抛出 CalledProcessError
+                subprocess.run(["open", path_str], check=True, stderr=subprocess.PIPE)
             else:
-                subprocess.run(["xdg-open", path_str], check=True)
-        except (FileNotFoundError, subprocess.CalledProcessError) as e:
-             logger.error(f"无法打开文件或目录：{file_path}", exc_info=True)
-             messagebox.showerror("打开失败", f"无法打开文件或目录：\n{file_path}\n\n错误: {e}")
+                # Linux环境：抑制终端错误输出，失败时会抛出 CalledProcessError
+                subprocess.run(["xdg-open", path_str], check=True, stderr=subprocess.PIPE)
+        except (FileNotFoundError, subprocess.CalledProcessError, OSError) as e:
+            # 【修复日志显示】：在 GUI (Warning级别) 仅显示最干净、精简的文件名提示，不再显示冗长的临时路径和底层报错
+            logger.warning(f"无法打开文件，系统可能未安装关联程序: {Path(file_path).name}")
+            
+            # 【调试日志隔离】：将底层的具体报错对象和完整临时路径通过 debug 级别记录
+            # 这样它只会写入到后台的 app_runtime.log 文件中（用于开发者排查），绝对不会出现在用户的 GUI 界面上
+            logger.debug(f"打开文件失败的完整路径: {file_path}, 底层详细信息: {e}")
+            
+            # 根据文件后缀名动态提供更友好的软件安装提示
+            ext = Path(file_path).suffix.lower()
+            app_hint = ""
+            if ext in ['.xls', '.xlsx']:
+                app_hint = "（建议安装 Microsoft Office Excel 或 WPS Office 等表格软件）"
+            elif ext in ['.doc', '.docx']:
+                app_hint = "（建议安装 Microsoft Office Word 或 WPS Office 等文档软件）"
+                
+            messagebox.showerror(
+                "打开失败", 
+                f"无法打开该文件：\n{Path(file_path).name}\n\n"
+                f"您的系统中似乎没有关联能够打开此类文件的默认程序。\n"
+                f"请确保已安装相应的办公软件{app_hint}后重试。"
+            )
         except Exception as e:
+            # 对于真正的未知错误，记录在 ERROR 级别
             logger.error(f"打开文件时发生未知错误", exc_info=True)
             messagebox.showerror("打开失败", f"发生未知错误：\n{e}")
 
@@ -63,13 +86,12 @@ class Handlers:
                 messagebox.showerror("错误", f"模板文件未找到！\n请确保 '{template_name}' 文件存在于 'templates' 文件夹中。")
                 return
 
-            # --- 已修改 ---
             # 调用更健壮的 create_temp_read_only_copy 函数
             temp_path = temp_manager.create_temp_read_only_copy(str(original_path))
 
             if temp_path:
+                logger.info(f"尝试打开模板: {template_name}")
                 self._open_file_cross_platform(temp_path)
-                logger.info(f"已打开模板: {template_name}")
             else:
                 # 如果 temp_path 为 None，说明创建或清理失败
                 logger.error(f"创建或清理临时文件失败: {template_name}")
