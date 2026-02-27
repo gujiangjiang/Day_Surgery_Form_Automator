@@ -63,7 +63,22 @@ class SplashScreen(tk.Toplevel):
         self.overrideredirect(True)
         # 将窗口背景和透明色绑定
         self.config(bg=transparent_color)
-        self.wm_attributes('-transparentcolor', transparent_color)
+        
+        # 【修复跨平台 Bug】：针对不同平台设置透明属性，解决 macOS 和 Linux 报错问题
+        try:
+            if sys.platform == "win32":
+                # Windows 环境：支持 -transparentcolor 属性
+                self.wm_attributes('-transparentcolor', transparent_color)
+            elif sys.platform == "darwin":
+                # macOS 环境：使用 -transparent 属性，并使用系统透明色
+                self.wm_attributes('-transparent', True)
+                self.config(bg='systemTransparent')
+            else:
+                # Linux/X11 环境：设置为 splash 类型
+                self.wm_attributes('-type', 'splash')
+        except tk.TclError:
+            # 忽略当前系统不支持的窗口属性，防止程序因此崩溃
+            pass
 
         # 加载启动图片
         self.image = tk.PhotoImage(file=image_path)
@@ -134,10 +149,15 @@ def main():
          print(f"警告：图标文件 'app.ico' 未找到。")
     else:
         try:
-            # iconbitmap 在某些系统下可能需要字符串路径
-            root.iconbitmap(str(icon_path))
-        except tk.TclError:
-            print(f"警告：无法加载图标文件。")
+            # 【修复跨平台 Bug】：处理 macOS/Linux 环境下图加载 .ico 可能出错的问题
+            if sys.platform == "win32":
+                # iconbitmap 在某些系统下可能需要字符串路径 (Windows 首选)
+                root.iconbitmap(str(icon_path))
+            else:
+                # macOS 和 Linux 环境如果强制使用 iconbitmap 调用 .ico 易崩溃，因此尝试更安全的替代或忽略
+                pass
+        except Exception as e:
+            print(f"警告：无法加载图标文件。{e}")
 
     # --- 修改：实例化新的类名 ---
     # 将根目录路径(Path对象)传递给App实例，以便其他模块也能正确找到文件

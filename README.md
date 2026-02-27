@@ -2,7 +2,7 @@
 # (日间手术随访表生成系统)
 
 [![Python](https://img.shields.io/badge/Python-3.7+-blue.svg)](https://www.python.org/)
-[![Version](https://img.shields.io/badge/Version-8.4-brightgreen.svg)]()
+[![Version](https://img.shields.io/badge/Version-8.5-brightgreen.svg)]()
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
 这是一款功能强大且用户友好的医疗文档自动化工具，专为简化“日间手术随访表”的生成流程而设计。**V8.x 版本对项目代码进行了全面的模块化重构，将原先单一的脚本拆分为独立的逻辑 (`core`)、界面 (`gui`)、配置 (`config.py`) 和工具函数 (`utils.py`) 模块，大幅提升了代码的可读性与可维护性。**
@@ -25,6 +25,7 @@
 * **精准失败提醒**：独有的智能提醒机制，只针对**真正符合“日间手术”条件的患者**进行床号匹配失败的汇总提醒。程序会自动过滤掉所有非日间手术的无关信息，让问题定位更快速、更精准。
 
 ### 现代化的用户体验
+* **全面跨平台兼容**：完美支持 Windows、macOS 和 Linux 操作系统，自动识别并适配不同系统的窗口透明度与高分屏特性，真正实现一次编写，多端运行。
 * **流畅不卡顿的多线程架构**：所有耗时的文件读写、数据解析和文档生成任务，均在独立的后台线程中执行。这确保了图形用户界面（GUI）在处理过程中**始终保持流畅响应**，用户可以随时与界面交互，体验绝不卡顿。
 * **专业的双通道日志系统**：
     * **UI界面日志**：在界面右侧提供带颜色区分（提示/警告/错误）的滚动日志框，实时、直观地显示处理进度和关键信息。

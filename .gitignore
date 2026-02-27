@@ -5,3 +5,6 @@
 
 # Python日志文件
 /source/logs
+
+#macOS优化
+.DS_Store
