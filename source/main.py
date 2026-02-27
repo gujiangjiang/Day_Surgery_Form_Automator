@@ -132,7 +132,8 @@ def main():
         print(f"设置DPI感知失败: {e}")
 
     # 使用 pathlib 构建资源路径
-    icon_path = BASE_PATH / 'assets' / 'app.ico'
+    icon_path_ico = BASE_PATH / 'assets' / 'app.ico'
+    icon_path_png = BASE_PATH / 'assets' / 'app.png' # 新增：macOS/Linux 专用图标路径
     splash_path = BASE_PATH / 'assets' / 'splash.png'
 
     root = tk.Tk()
@@ -145,17 +146,22 @@ def main():
     else:
         splash = SplashScreen(root, splash_path)
 
-    if not icon_path.exists():
-         print(f"警告：图标文件 'app.ico' 未找到。")
+    # 图标加载逻辑优化：分别检查对应平台的图标文件是否存在
+    if sys.platform == "win32" and not icon_path_ico.exists():
+         print(f"警告：Windows 图标文件 'app.ico' 未找到。")
+    elif sys.platform != "win32" and not icon_path_png.exists():
+         print(f"警告：macOS/Linux 图标文件 'app.png' 未找到。")
     else:
         try:
             # 【修复跨平台 Bug】：处理 macOS/Linux 环境下图加载 .ico 可能出错的问题
             if sys.platform == "win32":
                 # iconbitmap 在某些系统下可能需要字符串路径 (Windows 首选)
-                root.iconbitmap(str(icon_path))
+                root.iconbitmap(str(icon_path_ico))
             else:
-                # macOS 和 Linux 环境如果强制使用 iconbitmap 调用 .ico 易崩溃，因此尝试更安全的替代或忽略
-                pass
+                # macOS 和 Linux 环境下，改用 iconphoto 加载 app.png 作为窗口图标
+                if icon_path_png.exists():
+                    img = tk.PhotoImage(file=str(icon_path_png))
+                    root.iconphoto(True, img)
         except Exception as e:
             print(f"警告：无法加载图标文件。{e}")
 
